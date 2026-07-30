@@ -75,19 +75,22 @@ function authenticate({ scriptId, key, hwid, ip, executor }) {
     }
   }
 
+  // Key-sharing detection: if honoring this request would push the key past the
+  // allowed number of distinct HWIDs in the window, auto-ban and reject it now —
+  // before it counts as a success, so stats aren't polluted and the shared key
+  // never receives the source.
+  if (isKeyShared(row.id, hwid)) {
+    db.prepare("UPDATE keys SET status = 'banned' WHERE id = ?").run(row.id);
+    logExecution({ keyId: row.id, scriptId, hwid, ip, executor, success: false, reason: 'auto_banned_sharing' });
+    return { success: false, code: 403, message: 'Key banned — sharing detected' };
+  }
+
   // Success — record the execution and hand back the protected source.
   db.prepare('UPDATE keys SET total_executions = total_executions + 1, last_seen = ? WHERE id = ?').run(
     now(),
     row.id
   );
   logExecution({ keyId: row.id, scriptId, hwid, ip, executor, success: true, reason: 'ok' });
-
-  // Key-sharing detection: too many distinct HWIDs in the window -> auto-ban.
-  if (isKeyShared(row.id)) {
-    db.prepare("UPDATE keys SET status = 'banned' WHERE id = ?").run(row.id);
-    logExecution({ keyId: row.id, scriptId, hwid, ip, executor, success: false, reason: 'auto_banned_sharing' });
-    return { success: false, code: 403, message: 'Key banned — sharing detected' };
-  }
 
   return {
     success: true,
@@ -97,17 +100,24 @@ function authenticate({ scriptId, key, hwid, ip, executor }) {
   };
 }
 
-/** True if a key has been used from more distinct HWIDs than allowed in the window. */
-function isKeyShared(keyId) {
+/**
+ * True if honoring a request from `currentHwid` would exceed the allowed number
+ * of distinct HWIDs for this key within the window. The current HWID is counted
+ * even though this request hasn't been logged yet, so the limit is enforced on
+ * the offending request itself rather than one execution late.
+ */
+function isKeyShared(keyId, currentHwid) {
   if (!config.keyShareMaxHwids || config.keyShareMaxHwids < 1) return false;
   const since = now() - Math.floor(config.keyShareWindowMs / 1000);
-  const { c } = db
+  const rows = db
     .prepare(
-      `SELECT COUNT(DISTINCT hwid) AS c FROM executions
+      `SELECT DISTINCT hwid FROM executions
        WHERE key_id = ? AND success = 1 AND hwid IS NOT NULL AND created_at >= ?`
     )
-    .get(keyId, since);
-  return c > config.keyShareMaxHwids;
+    .all(keyId, since);
+  const seen = new Set(rows.map((r) => r.hwid));
+  if (currentHwid) seen.add(String(currentHwid));
+  return seen.size > config.keyShareMaxHwids;
 }
 
 module.exports = { authenticate };

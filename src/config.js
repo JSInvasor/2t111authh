@@ -21,6 +21,10 @@ const config = {
   authRateMax: parseInt(process.env.AUTH_RATE_MAX || '30', 10),
   authRateWindowMs: parseInt(process.env.AUTH_RATE_WINDOW_MS || '60000', 10),
 
+  // Max JSON body for the admin script routes (source uploads can be large).
+  // Public endpoints (auth/handshake) are capped much lower, see src/index.js.
+  jsonLimit: process.env.JSON_LIMIT || '5mb',
+
   // Executors that are refused at /api/v1/auth (comma-separated, case-insensitive).
   blockedExecutors: (process.env.BLOCKED_EXECUTORS || '')
     .split(',')

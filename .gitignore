@@ -2,7 +2,11 @@ node_modules/
 .env
 *.env.local
 
-# SQLite runtime files (WAL checkpoint shards — not for VCS)
+# SQLite database + WAL checkpoint shards — runtime data, not for VCS.
+# NOTE: data/2t1auth.db is already tracked from an earlier commit; run
+#   git rm --cached data/2t1auth.db data/2t1auth.db-wal data/2t1auth.db-shm
+# to stop tracking it (its contents stay in history until history is rewritten).
+data/*.db
 data/*.db-wal
 data/*.db-shm
 

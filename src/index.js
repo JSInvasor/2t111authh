@@ -41,7 +41,13 @@ app.use(
   })
 );
 app.use(requestLogger);
-app.use(express.json({ limit: '5mb' }));
+
+// Body parsers, scoped by trust level. Unauthenticated/public routes get a
+// tight limit; only the admin script routes (which carry Lua source) get the
+// large one. Applied per-mount below — no global parser — so a public endpoint
+// can never be forced to buffer a multi-megabyte body.
+const jsonSmall = express.json({ limit: '64kb' });
+const jsonLarge = express.json({ limit: config.jsonLimit });
 
 // Health check (also verifies the DB is reachable).
 app.get('/health', (req, res) => {
@@ -58,7 +64,7 @@ app.get('/', (req, res) => res.redirect('/dashboard/'));
 // Redirect the no-trailing-slash form only, so relative asset URLs resolve
 // under /dashboard/ (an exact match avoids a redirect loop on /dashboard/).
 app.use((req, res, next) => (req.path === '/dashboard' ? res.redirect('/dashboard/') : next()));
-app.use('/dashboard/api', dashboardRouter);
+app.use('/dashboard/api', jsonSmall, dashboardRouter);
 app.use(
   '/dashboard',
   express.static(path.join(__dirname, '..', 'public'), {
@@ -72,12 +78,12 @@ app.use(publicRouter);
 
 // Admin API (Bearer master key OR admin session cookie)
 app.get('/api/v1/overview', requireAdmin, (req, res) => res.json({ success: true, overview: overview() }));
-app.use('/api/v1/scripts', requireAdmin, scriptsRouter);
-app.use('/api/v1/keys', requireAdmin, keysRouter);
-app.use('/api/v1/resellers', requireAdmin, resellersRouter);
+app.use('/api/v1/scripts', requireAdmin, jsonLarge, scriptsRouter); // script source can be large
+app.use('/api/v1/keys', requireAdmin, jsonSmall, keysRouter);
+app.use('/api/v1/resellers', requireAdmin, jsonSmall, resellersRouter);
 
 // Reseller-scoped API (reseller session cookie)
-app.use('/api/v1/reseller', requireReseller, resellerRouter);
+app.use('/api/v1/reseller', requireReseller, jsonSmall, resellerRouter);
 
 app.use(notFound);
 app.use(errorHandler);

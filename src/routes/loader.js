@@ -11,6 +11,10 @@ const { authLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
+// Public endpoints only ever receive tiny JSON payloads (ids/keys/hwid), so cap
+// them hard. There is no global body parser (see src/index.js) — parse here.
+const jsonPublic = express.json({ limit: '16kb' });
+
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', '..', 'lua', 'loader_template.lua'), 'utf8');
 
 function clientIp(req) {
@@ -42,7 +46,7 @@ router.get('/loader/:file', (req, res) => {
  * Public (rate limited). The loader calls this first to get a single-use nonce,
  * which it must then include in /api/v1/auth. Blocks trivial replay of auth requests.
  */
-router.post('/api/v1/handshake', authLimiter, (req, res) => {
+router.post('/api/v1/handshake', authLimiter, jsonPublic, (req, res) => {
   const { script_id } = req.body || {};
   if (!script_id) return res.status(400).json({ success: false, message: 'script_id is required' });
   const script = scripts.getScript(String(script_id));
@@ -56,7 +60,7 @@ router.post('/api/v1/handshake', authLimiter, (req, res) => {
  * Public (rate limited). The loader calls this with { script_id, key, hwid, executor, nonce }.
  * On success responds { success:true, script:"<lua source>" }.
  */
-router.post('/api/v1/auth', authLimiter, (req, res) => {
+router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
   const { script_id, key, hwid, executor, nonce: n } = req.body || {};
   if (!script_id || !key) {
     return res.status(400).json({ success: false, message: 'script_id and key are required' });

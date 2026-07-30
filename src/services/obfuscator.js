@@ -67,9 +67,10 @@ function minifySource(script) {
 
 function randName() {
   const a = 'abcdefghijklmnopqrstuvwxyz';
-  const len = 3 + Math.floor(Math.random() * 4);
-  let n = a[Math.floor(Math.random() * 26)];
-  for (let i = 0; i < len; i++) n += a[Math.floor(Math.random() * 26)];
+  // Cryptographically random so stub identifiers can't be predicted.
+  const len = 4 + crypto.randomInt(4); // 4..7 chars
+  let n = '';
+  for (let i = 0; i < len; i++) n += a[crypto.randomInt(a.length)];
   return n;
 }
 function distinctNames(count) {
