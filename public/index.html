@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>2t1auth — Dashboard</title>
+    <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+
+    <!-- Login (macOS-style window) -->
+    <div id="login" class="login-screen hidden">
+      <div class="login-modal">
+        <div class="login-titlebar">
+          <div class="login-traffic">
+            <span class="login-dot red"></span>
+            <span class="login-dot yellow"></span>
+            <span class="login-dot green"></span>
+          </div>
+          <div class="login-titlebar-title">2t1auth</div>
+        </div>
+        <form id="loginForm" class="login-body">
+          <div class="login-brand">
+            <div class="logo-tile lg"><img src="logo.png" alt="2t1auth" /></div>
+            <h3>Welcome back</h3>
+            <p>Sign in to your dashboard</p>
+          </div>
+          <div class="login-field">
+            <label>Username</label>
+            <input id="loginUser" name="username" placeholder="Username" autocomplete="username" required />
+          </div>
+          <div class="login-field">
+            <label>Password</label>
+            <input id="loginPass" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="login-submit">Sign in</button>
+          <div id="loginError" class="login-error"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- App shell -->
+    <div id="app" class="app hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo-tile"><img src="logo.png" alt="" /></div>
+          <span class="brand-text">2t1<span>auth</span></span>
+        </div>
+        <div class="nav-label">Menu</div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar-footer">
+          <div class="whoami" id="whoami"></div>
+          <button id="logoutBtn" class="btn-ghost"><span data-icon="log-out"></span> Log out</button>
+        </div>
+      </aside>
+      <main class="content" id="view"></main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <div id="modalRoot"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

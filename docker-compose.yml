@@ -1,0 +1,19 @@
+# 2t1auth via Docker.
+#   1. cp deploy/env.production.example .env  (fill secrets; BASE_URL=https://2t1.online)
+#   2. docker compose up -d --build
+# The app listens on 127.0.0.1:3000 — put nginx (Cloudflare Origin cert) in front,
+# exactly like the non-Docker path in DEPLOY.md.
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Override values from .env that must differ inside the container.
+      - HOST=0.0.0.0
+      - DB_PATH=/app/data/2t1auth.db
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - ./data:/app/data

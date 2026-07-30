@@ -1,0 +1,30 @@
+# 2t1auth Discord bot service (optional — only if you use the bot)
+# Fill the DISCORD_* values in /opt/2t1auth/.env and register commands first:
+#   cd /opt/2t1auth && sudo -u 2t1auth npm run bot:register
+# Then:
+#   sudo cp deploy/systemd/2t1auth-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now 2t1auth-bot
+#   journalctl -u 2t1auth-bot -f
+
+[Unit]
+Description=2t1auth Discord bot
+After=network.target 2t1auth.service
+
+[Service]
+Type=simple
+User=2t1auth
+Group=2t1auth
+WorkingDirectory=/opt/2t1auth
+ExecStart=/usr/bin/node bot/index.js
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

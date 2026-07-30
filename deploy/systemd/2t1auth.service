@@ -1,0 +1,31 @@
+# 2t1auth API service
+# Install:
+#   sudo cp deploy/systemd/2t1auth.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now 2t1auth
+# Logs:
+#   journalctl -u 2t1auth -f
+
+[Unit]
+Description=2t1auth API
+After=network.target
+
+[Service]
+Type=simple
+User=2t1auth
+Group=2t1auth
+WorkingDirectory=/opt/2t1auth
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+# The app loads /opt/2t1auth/.env itself via dotenv.
+
+# --- light hardening ---
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

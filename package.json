@@ -1,0 +1,47 @@
+{
+  "name": "2t1auth",
+  "version": "1.0.0",
+  "description": "Luarmor-style script authentication & licensing system for Roblox — Auth API + Lua loader",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node scripts/seed.js",
+    "create-admin": "node scripts/create-admin.js",
+    "bot": "node bot/index.js",
+    "bot:register": "node bot/register.js",
+    "test": "node --test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": [
+    "roblox",
+    "luarmor",
+    "auth",
+    "licensing",
+    "keysystem",
+    "hwid"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^9.6.0",
+    "discord.js": "14.14.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "luamin": "^1.0.4"
+  },
+  "devDependencies": {
+    "fengari": "^0.1.4",
+    "prettier": "^3.3.3"
+  },
+  "overrides": {
+    "undici": "5.28.5",
+    "@discordjs/rest": "2.0.1",
+    "@discordjs/ws": "1.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
