@@ -1,37 +1,115 @@
 'use strict';
 
-// Single-use, short-lived nonces for the loader handshake (replay protection).
-// In-memory store — only the API process issues/consumes them.
+// Single-use, short-lived handshake sessions for the loader (replay protection).
+//
+// A handshake hands the loader a `nonce` plus a per-session `salt`. The salt is
+// what turns the handshake from "a token you can just ask for again" into a real
+// binding: the loader must prove it holds the salt (HMAC over the request), and
+// the delivered payload is encrypted under a key derived from it. So a captured
+// /api/v1/auth request can neither be replayed nor edited, and a captured
+// response can't be decrypted outside the session that asked for it.
+//
+// In-memory store — only the API process issues and consumes these.
 
 const crypto = require('crypto');
 const config = require('../config');
 
-const store = new Map(); // nonce -> { scriptId, expires }
+const store = new Map(); // nonce -> { scriptId, ip, salt, expires }
+const perIp = new Map(); // ip -> live nonce count
 
-/** Issue a fresh nonce bound to a script. */
-function issue(scriptId) {
-  const nonce = crypto.randomBytes(18).toString('base64url');
-  store.set(nonce, { scriptId: String(scriptId), expires: Date.now() + config.nonceTtlMs });
-  return nonce;
+function bumpIp(ip, delta) {
+  if (!ip) return;
+  const next = (perIp.get(ip) || 0) + delta;
+  if (next > 0) perIp.set(ip, next);
+  else perIp.delete(ip);
 }
 
-/** Consume a nonce. Returns true only if it exists, is unexpired, and matches the script. */
-function consume(nonce, scriptId) {
+function drop(nonce) {
   const rec = store.get(nonce);
   if (!rec) return false;
-  store.delete(nonce); // single use
-  if (rec.expires < Date.now()) return false;
-  if (rec.scriptId !== String(scriptId)) return false;
+  store.delete(nonce);
+  bumpIp(rec.ip, -1);
   return true;
+}
+
+/**
+ * Issue a fresh handshake bound to a script (and, when enabled, to the caller's IP).
+ * @param {string} scriptId
+ * @param {{ip?:string|null}} [opts]
+ * @returns {{nonce:string, salt:string, ttl:number}}
+ */
+function issue(scriptId, { ip = null } = {}) {
+  sweep();
+
+  const boundIp = config.nonceBindIp && ip ? String(ip) : null;
+
+  // One IP may only hold so many un-spent handshakes at a time; retire its
+  // oldest instead of letting a single host park entries until they expire.
+  if (boundIp && (perIp.get(boundIp) || 0) >= config.nonceMaxPerIp) {
+    for (const [k, v] of store) {
+      if (v.ip === boundIp) {
+        drop(k);
+        break;
+      }
+    }
+  }
+
+  // Global ceiling. Map iterates in insertion order, so this evicts oldest-first.
+  while (store.size >= config.nonceMax) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    drop(oldest);
+  }
+
+  const nonce = crypto.randomBytes(24).toString('base64url');
+  const salt = crypto.randomBytes(24).toString('base64url');
+  store.set(nonce, {
+    scriptId: String(scriptId),
+    ip: boundIp,
+    salt,
+    expires: Date.now() + config.nonceTtlMs,
+  });
+  bumpIp(boundIp, 1);
+  return { nonce, salt, ttl: config.nonceTtlMs };
+}
+
+/**
+ * Spend a handshake. Always single-use: the record is removed on the first
+ * attempt, valid or not, so a guessed/stolen nonce can't be retried.
+ * @returns {{ok:true, salt:string} | {ok:false, reason:string}}
+ */
+function consume(nonce, { scriptId, ip = null } = {}) {
+  const rec = store.get(String(nonce || ''));
+  if (!rec) return { ok: false, reason: 'unknown_nonce' };
+  drop(String(nonce));
+
+  if (rec.expires < Date.now()) return { ok: false, reason: 'expired_nonce' };
+  if (rec.scriptId !== String(scriptId)) return { ok: false, reason: 'nonce_script_mismatch' };
+  if (rec.ip && String(ip || '') !== rec.ip) return { ok: false, reason: 'nonce_ip_mismatch' };
+  return { ok: true, salt: rec.salt };
 }
 
 function sweep() {
   const now = Date.now();
-  for (const [k, v] of store) if (v.expires < now) store.delete(k);
+  for (const [k, v] of store) {
+    if (v.expires < now) drop(k);
+  }
 }
 
-// Periodic cleanup; unref so it never keeps the process (or test runner) alive.
-const timer = setInterval(sweep, Math.max(5000, config.nonceTtlMs));
+/** Snapshot for health/diagnostics. */
+function stats() {
+  return { live: store.size, ips: perIp.size, max: config.nonceMax };
+}
+
+/** Test helper — drop every live handshake. */
+function reset() {
+  store.clear();
+  perIp.clear();
+}
+
+// Periodic cleanup. Clamped so a long NONCE_TTL_MS can't stall the sweeper (and
+// a tiny one can't spin it); unref'd so it never keeps the process alive.
+const timer = setInterval(sweep, Math.min(60000, Math.max(5000, config.nonceTtlMs)));
 if (timer.unref) timer.unref();
 
-module.exports = { issue, consume, sweep, _store: store };
+module.exports = { issue, consume, sweep, stats, reset, _store: store };

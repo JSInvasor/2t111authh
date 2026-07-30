@@ -34,6 +34,29 @@ function checkConfig() {
     warnings.push('HOST is 0.0.0.0; when running behind nginx set HOST=127.0.0.1 so the app is not exposed directly.');
   }
 
+  // ---- anti-tamper ----
+  if (!config.antiTamper) {
+    (prod ? errors : warnings).push(
+      'ANTI_TAMPER=0 — the handshake, session proof and session-keyed delivery are all off. Debug only.'
+    );
+  } else {
+    if (!config.requireProof) {
+      warnings.push('REQUIRE_PROOF=0 — captured auth requests can be edited and replayed with a fresh nonce.');
+    }
+    if (!config.sessionEncryption) {
+      warnings.push('SESSION_ENCRYPTION=0 — delivered payloads carry their own key, so a captured response decrypts.');
+    }
+    if (!config.nonceBindIp) {
+      warnings.push('NONCE_BIND_IP=0 — a handshake taken on one host can be spent from another.');
+    }
+  }
+
+  if (prod && config.trustProxy > 0 && config.host === '0.0.0.0') {
+    warnings.push(
+      `TRUST_PROXY=${config.trustProxy} while listening on 0.0.0.0 — if clients can reach the app directly they can forge X-Forwarded-For and bypass rate limiting.`
+    );
+  }
+
   return { errors, warnings };
 }
 

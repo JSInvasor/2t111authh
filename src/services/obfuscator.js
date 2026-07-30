@@ -5,12 +5,20 @@
 // Pipeline:
 //   1. (optional) luamin minify + local-variable mangle — skipped safely if the
 //      source doesn't parse as Lua 5.x (e.g. Luau-only syntax), so it never breaks a script.
-//   2. RC4 encrypt with a fresh random key on every delivery.
-//   3. base64 the ciphertext + key and embed them in a small Lua decryptor stub
-//      with randomized identifier names, so each delivery is byte-unique.
+//   2. RC4 encrypt.
+//   3. base64 the ciphertext and embed it in a small Lua decryptor stub with
+//      randomized identifier names, so each delivery is byte-unique.
 //
-// The stub decrypts in memory and loadstring()s the real source. Source is stored
-// in plaintext; obfuscation happens only here, at the single delivery point.
+// Two key modes:
+//   • session (default when anti-tamper is on) — the key is derived by BOTH
+//     sides from the live handshake (salt|nonce|script|key|hwid) and is passed
+//     into the stub as a vararg. It is never written into the payload, so a
+//     captured/shared response decrypts to nothing without that exact session.
+//   • inline — the key travels inside the stub. Self-contained, so it is what
+//     the loader bootstrap itself uses (there is no session yet at that point)
+//     and what ANTI_TAMPER=0 falls back to for debugging.
+//
+// Source is stored in plaintext; obfuscation happens only here, at delivery.
 
 const crypto = require('crypto');
 
@@ -45,19 +53,29 @@ function rc4(key, data) {
 
 /* --------------------------- minify (cached) --------------------------- */
 
+const MINIFY_CACHE_MAX = 200;
 const minifyCache = new Map(); // scriptId -> { updatedAt, code }
+
+/** Minify, or hand back the original if it isn't Lua 5.x-parseable (Luau syntax). */
+function minifyCode(code) {
+  if (!luamin) return code;
+  try {
+    return luamin.minify(code);
+  } catch {
+    return code;
+  }
+}
 
 function minifySource(script) {
   if (!luamin) return script.source;
   const cached = minifyCache.get(script.id);
   if (cached && cached.updatedAt === script.updated_at) return cached.code;
 
-  let code = script.source;
-  try {
-    code = luamin.minify(script.source);
-  } catch {
-    // Not parseable (likely Luau-specific syntax) — keep original, still get encrypted.
-    code = script.source;
+  const code = minifyCode(script.source);
+  // Bounded: drop the oldest entry rather than growing once per script forever
+  // (deleted scripts would otherwise keep their minified copy alive for good).
+  if (!minifyCache.has(script.id) && minifyCache.size >= MINIFY_CACHE_MAX) {
+    minifyCache.delete(minifyCache.keys().next().value);
   }
   minifyCache.set(script.id, { updatedAt: script.updated_at, code });
   return code;
@@ -79,32 +97,60 @@ function distinctNames(count) {
   return [...set];
 }
 
+/**
+ * Two independent rolling hashes over the plaintext. Cheap on both sides and
+ * strong enough that a flipped byte can't slip through; the stub refuses to run
+ * anything that doesn't hash to the same pair.
+ */
 function checksum(str) {
   const buf = Buffer.from(str, 'utf8');
-  let h = 0;
-  for (let i = 0; i < buf.length; i++) h = (h * 31 + buf[i]) % 1000000007;
-  return h;
+  let h1 = 0;
+  let h2 = 0;
+  for (let i = 0; i < buf.length; i++) {
+    h1 = (h1 * 31 + buf[i]) % 1000000007;
+    h2 = (h2 * 131 + buf[i]) % 999999937;
+  }
+  return { h1, h2 };
 }
 
-function buildStub(keyB64, dataB64, chk) {
-  const [KEY, DATA, B64, XOR, RC4, SRC, LD, FN, H] = distinctNames(9);
-  return `local ${KEY}="${keyB64}"
-local ${DATA}="${dataB64}"
+/**
+ * @param {{dataB64:string, keyB64?:string|null, chk:{h1:number,h2:number}}} parts
+ *   keyB64 omitted ⇒ session mode: the stub expects the key as its first vararg.
+ */
+function buildStub({ dataB64, keyB64 = null, chk }) {
+  const [KEY, DATA, B64, XOR, RC4, SRC, LD, FN, H1, H2, IC, BYTE] = distinctNames(12);
+
+  // How the stub obtains its RC4 key.
+  const keyInit = keyB64
+    ? `local ${KEY}=${B64}("${keyB64}")`
+    : `local ${KEY}=...
+if type(${KEY})~="string" or #${KEY}==0 then return end`;
+
+  return `local ${DATA}="${dataB64}"
+local ${BYTE}=string.byte
 local function ${B64}(d)
 local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-d=string.gsub(d,'[^'..b..'=]','')
-return (d:gsub('.',function(x)
-if x=='=' then return '' end
-local r,f='',(b:find(x)-1)
-for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
-return r
-end):gsub('%d%d%d?%d?%d?%d?%d?%d?',function(x)
-if #x~=8 then return '' end
-local c=0
-for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
-return string.char(c)
-end))
+local t={}
+for i=1,64 do t[${BYTE}(b,i)]=i-1 end
+local o,n,acc,bits={},0,0,0
+for i=1,#d do
+local v=t[${BYTE}(d,i)]
+if v then
+acc=acc*64+v
+bits=bits+6
+if bits>=8 then
+bits=bits-8
+local p=2^bits
+local c=math.floor(acc/p)
+acc=acc-c*p
+n=n+1
+o[n]=string.char(c)
 end
+end
+end
+return table.concat(o)
+end
+${keyInit}
 local ${XOR}=(bit32 and bit32.bxor) or (bit and bit.bxor)
 if not ${XOR} then
 ${XOR}=function(a,b)
@@ -122,7 +168,7 @@ local S={}
 for i=0,255 do S[i]=i end
 local j=0
 for i=0,255 do
-j=(j+S[i]+string.byte(k,(i%#k)+1))%256
+j=(j+S[i]+${BYTE}(k,(i%#k)+1))%256
 S[i],S[j]=S[j],S[i]
 end
 local o={}
@@ -131,15 +177,25 @@ for m=1,#d do
 a=(a+1)%256
 c=(c+S[a])%256
 S[a],S[c]=S[c],S[a]
-o[m]=string.char(${XOR}(string.byte(d,m),S[(S[a]+S[c])%256]))
+o[m]=string.char(${XOR}(${BYTE}(d,m),S[(S[a]+S[c])%256]))
 end
 return table.concat(o)
 end
-local ${SRC}=${RC4}(${B64}(${KEY}),${B64}(${DATA}))
-local ${H}=0.0
-for i=1,#${SRC} do ${H}=(${H}*31+string.byte(${SRC},i))%1000000007 end
-if ${H}~=${chk} then return warn("[2t1auth] integrity check failed") end
+local ${SRC}=${RC4}(${KEY},${B64}(${DATA}))
+if #${SRC}==0 then return end
+local ${H1},${H2}=0.0,0.0
+for i=1,#${SRC} do
+local v=${BYTE}(${SRC},i)
+${H1}=(${H1}*31+v)%1000000007
+${H2}=(${H2}*131+v)%999999937
+end
+if ${H1}~=${chk.h1} or ${H2}~=${chk.h2} then return end
 local ${LD}=loadstring or load
+local ${IC}=iscclosure or is_c_closure
+if ${IC} then
+local ok,isC=pcall(${IC},${LD})
+if ok and isC==false then return end
+end
 local ${FN}=${LD}(${SRC})
 if ${FN} then return ${FN}() end`;
 }
@@ -147,14 +203,42 @@ if ${FN} then return ${FN}() end`;
 /**
  * Obfuscate a script for delivery. Pass the script row (needs id, source, updated_at).
  * @param {object} script
- * @param {{minify?:boolean}} [opts]
+ * @param {{minify?:boolean, key?:Buffer|null}} [opts]
+ *   key — session key both sides derived. Given, it is used but NOT embedded
+ *   (the stub reads it from `...`). Omitted, a random key is generated and
+ *   shipped inside the stub.
  * @returns {string} Lua decryptor stub
  */
-function obfuscate(script, { minify = true } = {}) {
-  const source = minify ? minifySource(script) : script.source;
-  const key = crypto.randomBytes(16);
-  const cipher = rc4(key, Buffer.from(source, 'utf8'));
-  return buildStub(key.toString('base64'), cipher.toString('base64'), checksum(source));
+function obfuscate(script, { minify = true, key = null } = {}) {
+  return pack(minify ? minifySource(script) : script.source, key);
 }
 
-module.exports = { obfuscate, rc4, _buildStub: buildStub };
+/**
+ * Obfuscate a standalone chunk of Lua — used for the loader bootstrap, which has
+ * no session yet and so is always inline-key. Not cached: the chunk is different
+ * on every request anyway.
+ */
+function obfuscateChunk(source, { minify = true } = {}) {
+  return pack(minify ? minifyCode(source) : source, null);
+}
+
+/** Encrypt `source` and wrap it in a stub, session-key mode when `key` is given. */
+function pack(source, key) {
+  const useSessionKey = !!(key && key.length);
+  const rc4Key = useSessionKey ? Buffer.from(key) : crypto.randomBytes(16);
+  const cipher = rc4(rc4Key, Buffer.from(source, 'utf8'));
+  return buildStub({
+    dataB64: cipher.toString('base64'),
+    keyB64: useSessionKey ? null : rc4Key.toString('base64'),
+    chk: checksum(source),
+  });
+}
+
+module.exports = {
+  obfuscate,
+  obfuscateChunk,
+  rc4,
+  checksum,
+  _buildStub: buildStub,
+  _minifyCacheSize: () => minifyCache.size,
+};

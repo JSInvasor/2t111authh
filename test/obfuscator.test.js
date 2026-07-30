@@ -1,24 +1,54 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { obfuscate, rc4 } = require('../src/services/obfuscator');
+const crypto = require('node:crypto');
+const { obfuscate, obfuscateChunk, rc4, _minifyCacheSize } = require('../src/services/obfuscator');
 const luamin = require('luamin');
 
 let fengari = null;
 try {
   fengari = require('fengari');
 } catch {
-  /* optional — the Lua-execution test is skipped without it */
+  /* optional — the Lua-execution tests are skipped without it */
 }
 
 const S = (source) => ({ id: 'x' + Math.random(), source, updated_at: 1 });
 
+// Pull the ciphertext (and the embedded key, in inline mode) back out of a stub.
+function parts(stub) {
+  const data = stub.match(/^local \w+="([A-Za-z0-9+/=]*)"/m);
+  const key = stub.match(/=\w+\("([A-Za-z0-9+/=]+)"\)/);
+  assert.ok(data, 'stub has no ciphertext');
+  return {
+    data: Buffer.from(data[1], 'base64'),
+    key: key ? Buffer.from(key[1], 'base64') : null,
+  };
+}
+
 // Decrypt a stub back to source in JS (RC4 is symmetric).
-function decrypt(stub) {
-  const lines = stub.split('\n');
-  const key = Buffer.from(lines[0].match(/="([^"]*)"/)[1], 'base64');
-  const data = Buffer.from(lines[1].match(/="([^"]*)"/)[1], 'base64');
-  return rc4(key, data).toString('utf8');
+function decrypt(stub, key = null) {
+  const p = parts(stub);
+  return rc4(key || p.key, p.data).toString('utf8');
+}
+
+// Run a Lua chunk, optionally with a vararg, and read back the global __R.
+function runLua(code, arg) {
+  const { lua, lauxlib, lualib, to_luastring } = fengari;
+  const L = lauxlib.luaL_newstate();
+  lualib.luaL_openlibs(L);
+  if (lauxlib.luaL_loadstring(L, to_luastring(code)) !== lua.LUA_OK) {
+    return { ok: false, err: 'load: ' + lua.lua_tojsstring(L, -1) };
+  }
+  let argc = 0;
+  if (arg !== undefined) {
+    lua.lua_pushstring(L, arg);
+    argc = 1;
+  }
+  if (lua.lua_pcall(L, argc, 0, 0) !== lua.LUA_OK) {
+    return { ok: false, err: 'run: ' + lua.lua_tojsstring(L, -1) };
+  }
+  lua.lua_getglobal(L, to_luastring('__R'));
+  return { ok: true, val: lua.lua_tonumber(L, -1) };
 }
 
 test('round-trip without minify preserves source', () => {
@@ -46,19 +76,86 @@ test('two deliveries of the same source differ (random key)', () => {
   assert.notStrictEqual(obfuscate(s, { minify: false }), obfuscate(s, { minify: false }));
 });
 
-test('the Lua stub actually decrypts & runs (fengari)', { skip: !fengari }, () => {
-  const { lua, lauxlib, lualib, to_luastring } = fengari;
-  const run = (code) => {
-    const L = lauxlib.luaL_newstate();
-    lualib.luaL_openlibs(L);
-    const st = lauxlib.luaL_dostring(L, to_luastring(code));
-    if (st !== lua.LUA_OK) return { ok: false, err: lua.lua_tojsstring(L, -1) };
-    lua.lua_getglobal(L, to_luastring('__R'));
-    return { ok: true, val: lua.lua_tonumber(L, -1) };
-  };
+test('session mode keeps the key out of the payload', () => {
+  const key = crypto.randomBytes(32);
+  const stub = obfuscate(S('__R = 7'), { minify: false, key });
+  assert.strictEqual(parts(stub).key, null, 'stub still embeds a key');
+  assert.ok(!stub.includes(key.toString('base64')));
+  assert.strictEqual(decrypt(stub, key), '__R = 7');
+});
+
+test('session payloads are worthless without the session key', () => {
+  const stub = obfuscate(S('print("SEEKRIT_TOKEN")'), { minify: false, key: crypto.randomBytes(32) });
+  // Everything an attacker has is in the stub; none of it decrypts the payload.
+  assert.ok(!decrypt(stub, crypto.randomBytes(32)).includes('SEEKRIT_TOKEN'));
+});
+
+test('the minify cache is bounded', () => {
+  // Every S() has a fresh id, so an unbounded cache would end up holding 400
+  // minified copies (and would never release deleted scripts).
+  for (let i = 0; i < 400; i++) obfuscate(S('__R = ' + i), { minify: true });
+  assert.ok(_minifyCacheSize() <= 200, `cache grew to ${_minifyCacheSize()}`);
+});
+
+test('the Lua stub decrypts & runs — inline key (fengari)', { skip: !fengari }, () => {
   for (const min of [false, true]) {
-    const r = run(obfuscate(S('local a=20\nlocal b=22\n__R=a+b'), { minify: min }));
+    const r = runLua(obfuscate(S('local a=20\nlocal b=22\n__R=a+b'), { minify: min }));
     assert.ok(r.ok, r.err);
     assert.strictEqual(r.val, 42);
   }
+});
+
+test('the Lua stub decrypts & runs — session key (fengari)', { skip: !fengari }, () => {
+  const key = crypto.randomBytes(32);
+  for (const min of [false, true]) {
+    const stub = obfuscate(S('local a=20\nlocal b=22\n__R=a+b'), { minify: min, key });
+    const r = runLua(stub, key);
+    assert.ok(r.ok, r.err);
+    assert.strictEqual(r.val, 42);
+  }
+});
+
+test('a session stub runs nothing without the right key (fengari)', { skip: !fengari }, () => {
+  const stub = obfuscate(S('__R=42'), { minify: false, key: crypto.randomBytes(32) });
+  for (const arg of [undefined, '', crypto.randomBytes(32)]) {
+    const r = runLua(stub, arg);
+    assert.ok(r.ok, r.err); // bails cleanly, never errors
+    assert.ok(!r.val, 'stub executed with a bad key');
+  }
+});
+
+test('a tampered payload fails the integrity check (fengari)', { skip: !fengari }, () => {
+  const stub = obfuscate(S('__R=42'), { minify: false });
+  // Flip one base64 character of the ciphertext.
+  const broken = stub.replace(
+    /^local (\w+)="([A-Za-z0-9+/=]+)"/m,
+    (_m, n, d) => `local ${n}="${d.slice(0, 4)}${d[4] === 'A' ? 'B' : 'A'}${d.slice(5)}"`
+  );
+  const r = runLua(broken);
+  assert.ok(r.ok, r.err);
+  assert.ok(!r.val, 'corrupted payload still executed');
+});
+
+test('base64 payloads containing + and / decode correctly (fengari)', { skip: !fengari }, () => {
+  // The stub decodes base64 by table lookup; "+" and "/" are the two characters
+  // a pattern-based decoder would trip over. Hammer until both have appeared.
+  let sawPlus = false;
+  let sawSlash = false;
+  for (let i = 0; i < 40 && !(sawPlus && sawSlash); i++) {
+    const stub = obfuscate(S('__R=42'), { minify: false });
+    const data = parts(stub);
+    const b64 = data.data.toString('base64');
+    sawPlus = sawPlus || b64.includes('+');
+    sawSlash = sawSlash || b64.includes('/');
+    const r = runLua(stub);
+    assert.ok(r.ok, r.err);
+    assert.strictEqual(r.val, 42);
+  }
+  assert.ok(sawPlus && sawSlash, 'never generated a payload with + and /');
+});
+
+test('obfuscateChunk protects a standalone chunk (fengari)', { skip: !fengari }, () => {
+  const r = runLua(obfuscateChunk('local a=1\nlocal b=41\n__R=a+b'));
+  assert.ok(r.ok, r.err);
+  assert.strictEqual(r.val, 42);
 });

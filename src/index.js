@@ -25,7 +25,9 @@ enforceConfig();
 const app = express();
 
 // Respect X-Forwarded-For when behind a reverse proxy (nginx, Cloudflare…).
-app.set('trust proxy', 1);
+// TRUST_PROXY must match the real number of proxies: too high and a client can
+// forge its own IP, dodging the rate limiter and the handshake's IP binding.
+app.set('trust proxy', config.trustProxy);
 app.disable('x-powered-by');
 
 app.use(
