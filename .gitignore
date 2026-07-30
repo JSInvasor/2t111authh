@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.env.local
+
+# SQLite runtime files (WAL checkpoint shards — not for VCS)
+data/*.db-wal
+data/*.db-shm
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
