@@ -1,25 +1,25 @@
 /* =====================================================================
    2t1auth — dashboard UI
-   Type: Geist / Geist Mono (self-hosted, no CDN)
+   Type: Quicksand (UI) / Geist Mono (data) — self-hosted, no CDN
    Icons: Lucide (inlined in app.js — CSP allows no external scripts)
    ===================================================================== */
 
 /* ---------------------------------------------------------------- fonts */
 @font-face {
-  font-family: 'Geist';
+  font-family: 'Quicksand';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 300 700;
   font-display: swap;
-  src: url('fonts/geist-latin.woff2') format('woff2');
+  src: url('fonts/quicksand-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Geist';
+  font-family: 'Quicksand';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 300 700;
   font-display: swap;
-  src: url('fonts/geist-latin-ext.woff2') format('woff2');
+  src: url('fonts/quicksand-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
     U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
     U+2C60-2C7F, U+A720-A7FF;
@@ -46,7 +46,7 @@
 
 /* --------------------------------------------------------------- tokens */
 :root {
-  --ui: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --ui: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
   /* surfaces — warm neutral, a touch off-white so white cards read as paper */
@@ -210,8 +210,8 @@ body {
   color: var(--text);
   font-family: var(--ui);
   font-size: 14px;
+  font-weight: 450;
   line-height: 1.5;
-  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-user-select: none;
@@ -247,8 +247,8 @@ pre,
 h1,
 h2,
 h3 {
-  font-weight: 560;
-  letter-spacing: -0.02em;
+  font-weight: 610;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
@@ -371,7 +371,7 @@ svg.ico {
   color: var(--text);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 550;
   letter-spacing: -0.005em;
   cursor: pointer;
   white-space: nowrap;
@@ -404,7 +404,7 @@ svg.ico {
   background: var(--accent);
   color: var(--accent-fg);
   border-color: transparent;
-  font-weight: 550;
+  font-weight: 600;
   box-shadow: var(--sh-accent);
 }
 .btn-primary svg.ico,
@@ -541,7 +541,7 @@ label {
   font-size: 12px;
   color: var(--text-2);
   margin-bottom: 6px;
-  font-weight: 500;
+  font-weight: 550;
 }
 textarea {
   resize: vertical;
@@ -632,8 +632,8 @@ select {
 .login-brand h1 {
   margin: 16px 0 4px;
   font-size: 20px;
-  font-weight: 580;
-  letter-spacing: -0.028em;
+  font-weight: 630;
+  letter-spacing: -0.012em;
 }
 .login-brand p {
   margin: 0;
@@ -647,7 +647,7 @@ select {
 }
 .login-form label {
   font-size: 12px;
-  font-weight: 520;
+  font-weight: 570;
   color: var(--text-2);
   margin: 0;
 }
@@ -725,8 +725,8 @@ select {
 }
 .brand-text {
   font-size: 16.5px;
-  font-weight: 620;
-  letter-spacing: -0.035em;
+  font-weight: 670;
+  letter-spacing: -0.02em;
 }
 .brand-text span {
   color: var(--accent-text);
@@ -734,7 +734,7 @@ select {
 
 .nav-label {
   font-size: 10.5px;
-  font-weight: 560;
+  font-weight: 610;
   color: var(--text-4);
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -755,7 +755,7 @@ select {
   border-radius: var(--r-sm);
   color: var(--text-2);
   font-size: 13.5px;
-  font-weight: 480;
+  font-weight: 530;
   transition:
     color 0.16s var(--ease),
     background-color 0.16s var(--ease);
@@ -775,7 +775,7 @@ select {
 }
 .nav-item.active {
   color: var(--text);
-  font-weight: 540;
+  font-weight: 590;
   background: var(--surface-2);
 }
 .nav-item.active svg.ico {
@@ -816,7 +816,7 @@ select {
   display: grid;
   place-items: center;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--accent-text);
   background: var(--accent-tint);
   border: 1px solid var(--accent-tint-2);
@@ -830,7 +830,7 @@ select {
 }
 .whoami-name {
   font-size: 13px;
-  font-weight: 540;
+  font-weight: 590;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -911,8 +911,8 @@ select {
 .page-head h1 {
   margin: 0;
   font-size: 24px;
-  font-weight: 580;
-  letter-spacing: -0.032em;
+  font-weight: 630;
+  letter-spacing: -0.014em;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -949,7 +949,7 @@ select {
 }
 h2.section {
   font-size: 13px;
-  font-weight: 560;
+  font-weight: 610;
   color: var(--text-2);
   letter-spacing: 0.01em;
   margin: 30px 0 14px;
@@ -1000,7 +1000,7 @@ h2.section .count {
 .stat-label {
   font-size: 11.5px;
   color: var(--text-3);
-  font-weight: 500;
+  font-weight: 550;
   letter-spacing: -0.005em;
   white-space: nowrap;
   overflow: hidden;
@@ -1009,8 +1009,8 @@ h2.section .count {
 .stat-value {
   font-size: 26px;
   line-height: 1.1;
-  font-weight: 500;
-  letter-spacing: -0.045em;
+  font-weight: 550;
+  letter-spacing: -0.022em;
 }
 .stat.accent .stat-value {
   color: var(--accent-text);
@@ -1080,8 +1080,8 @@ h2.section .count {
 .card-top h3 {
   margin: 0;
   font-size: 14.5px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1110,7 +1110,7 @@ h2.section .count {
 .card-meta b {
   color: var(--text-2);
   font-family: var(--mono);
-  font-weight: 500;
+  font-weight: 550;
 }
 .card-id {
   display: block;
@@ -1129,7 +1129,7 @@ h2.section .count {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 550;
   padding: 2.5px 8px;
   border-radius: 999px;
   background: var(--surface-2);
@@ -1164,7 +1164,7 @@ h2.section .count {
   font-size: 11px;
   padding: 2.5px 8px 2.5px 7px;
   border-radius: 999px;
-  font-weight: 520;
+  font-weight: 570;
   border: 1px solid transparent;
   text-transform: capitalize;
 }
@@ -1253,8 +1253,8 @@ h2.section .count {
 .panel-head h2 {
   margin: 0;
   font-size: 13.5px;
-  font-weight: 550;
-  letter-spacing: -0.015em;
+  font-weight: 600;
+  letter-spacing: -0.008em;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1318,7 +1318,7 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-4);
-  font-weight: 560;
+  font-weight: 610;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
@@ -1419,7 +1419,7 @@ tr:hover .row-actions,
 .check label b {
   display: block;
   color: var(--text);
-  font-weight: 520;
+  font-weight: 570;
   font-size: 13px;
 }
 .form-actions {
@@ -1439,7 +1439,7 @@ tr:hover .row-actions,
 .hint b {
   color: var(--text);
   font-family: var(--mono);
-  font-weight: 500;
+  font-weight: 550;
 }
 
 /* ---------------------------------------------------------------- modal */
@@ -1483,9 +1483,9 @@ tr:hover .row-actions,
   gap: 10px;
   padding: 15px 14px 15px 18px;
   border-bottom: 1px solid var(--line-soft);
-  font-weight: 550;
+  font-weight: 600;
   font-size: 14.5px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .modal-body {
   padding: 18px;
@@ -1580,7 +1580,7 @@ tr:hover .row-actions,
 .empty h3 {
   margin: 0 0 5px;
   font-size: 14.5px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text);
 }
 .empty p {

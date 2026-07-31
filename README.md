@@ -60,8 +60,11 @@ Yeni admin eklemek / şifre değiştirmek için: `npm run create-admin -- <kulla
 
 - **Açık / koyu tema** — ilk açılışta işletim sistemi tercihini izler, sol alttaki
   düğmeyle değiştirilir; seçim `localStorage`'da saklanır.
-- **Tipografi** — Geist + Geist Mono (key/HWID/ID gibi teknik alanlar mono).
-  `.woff2` dosyaları `public/fonts/` altında **kendi sunucumuzda**; CDN'e istek gitmez.
+- **Tipografi** — arayüzde Quicksand (geometrik, yuvarlak uçlu), key/HWID/ID gibi
+  teknik alanlarda Geist Mono. İkisi de OFL lisanslı; `.woff2` dosyaları
+  `public/fonts/` altında **kendi sunucumuzda**, CDN'e istek gitmez.
+  Quicksand aynı sayısal ağırlıkta daha ince bastığı için CSS'teki `font-weight`
+  değerleri buna göre kalibre edilmiştir — fontu değiştirirsen bunları da gözden geçir.
 - **İkonlar** — Lucide, SVG olarak `app.js` içine gömülü. CSP `script-src 'self'`
   olduğu için harici ikon kütüphanesi yüklenmez.
 - Panel tek sayfa (hash router) çalışır, harici JS/CSS bağımlılığı yoktur ve
