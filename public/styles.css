@@ -676,7 +676,9 @@ select {
 .login-card {
   position: relative;
   z-index: 1;
-  width: min(410px, 100%);
+  width: min(880px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   background: var(--login-card);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
@@ -684,8 +686,87 @@ select {
     0 1px 2px rgba(23, 23, 23, 0.05),
     0 14px 30px -12px rgba(23, 23, 23, 0.16),
     0 44px 80px -28px rgba(23, 23, 23, 0.22);
-  padding: 40px 36px 30px;
+  overflow: hidden;
   animation: pop 0.45s var(--spring);
+}
+.login-pane {
+  padding: 44px 40px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ------------------------------------------------- login: showcase panel */
+/* Always dark, in both themes — it is the contrast the white form sits
+   against, so it must not flip with the palette. */
+.login-aside {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  min-height: 480px;
+  padding: 44px 38px;
+  background:
+    linear-gradient(165deg, #2b2b2b 0%, #1a1a1a 45%, #0d0d0d 100%);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+/* the same lattice as the page backdrop, so the two read as one system */
+.login-aside::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+/* starfield + dot globe, generated into login-art.svg and painted through a
+   mask so the artwork stays one file and takes its colour from here */
+/* glow under the sphere so it lifts off the panel instead of sitting flat */
+.login-aside::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -22%;
+  width: 118%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.09), transparent 100%);
+}
+.aside-art {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f2f2 38%, #b4b4b4 100%);
+  -webkit-mask: url('login-art.svg') center bottom / cover no-repeat;
+  mask: url('login-art.svg') center bottom / cover no-repeat;
+}
+.aside-copy {
+  position: relative;
+  z-index: 1;
+}
+.aside-copy::before {
+  content: '';
+  position: absolute;
+  inset: -46px -40px -34px -40px;
+  background: linear-gradient(180deg, rgba(13, 13, 13, 0.82) 30%, transparent 100%);
+  z-index: -1;
+}
+.aside-copy h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 630;
+  letter-spacing: -0.015em;
+  color: #fbfbfb;
+  text-wrap: balance;
+}
+.aside-copy p {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.62);
+  max-width: 30ch;
+  text-wrap: pretty;
 }
 @keyframes pop {
   from {
@@ -702,7 +783,7 @@ select {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 .login-brand h1 {
   margin: 14px 0 5px;
@@ -1832,6 +1913,21 @@ tr:hover .row-actions,
 @media (max-width: 1080px) {
   .content {
     padding: 30px 28px 56px;
+  }
+}
+
+/* the showcase panel needs real width to work; below that the card goes back
+   to being a single column */
+@media (max-width: 900px) {
+  .login-card {
+    width: min(410px, 100%);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .login-aside {
+    display: none;
+  }
+  .login-pane {
+    padding: 40px 34px 30px;
   }
 }
 
