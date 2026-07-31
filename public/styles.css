@@ -104,6 +104,8 @@
   --login-glow: rgba(247, 247, 247, 0.93);
   --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
+  --login-beam: rgba(23, 23, 23, 0.5);
+  --login-beam-glow: rgba(23, 23, 23, 0.22);
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -173,6 +175,8 @@
   --login-glow: rgba(13, 13, 13, 0.92);
   --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
+  --login-beam: rgba(255, 255, 255, 0.62);
+  --login-beam-glow: rgba(255, 255, 255, 0.3);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -232,6 +236,8 @@
     --login-glow: rgba(13, 13, 13, 0.92);
     --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
+    --login-beam: rgba(255, 255, 255, 0.62);
+    --login-beam-glow: rgba(255, 255, 255, 0.3);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -652,12 +658,83 @@ select {
 .login-screen::before {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: 0;
   background-image:
     linear-gradient(to right, var(--login-grid) 1px, transparent 1px),
     linear-gradient(to bottom, var(--login-grid) 1px, transparent 1px);
   background-size: 44px 44px;
-  background-position: center;
+  background-position: 0 0;
+}
+
+/* ---------------------------------------------- login: travelling beams */
+/* Segments that run along the lattice — dark on the light theme, light on
+   the dark one. They sit under the halo, so they fade out near the card. */
+.login-beams {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.beam-v,
+.beam-h {
+  position: absolute;
+  filter: drop-shadow(0 0 6px var(--login-beam-glow));
+  will-change: transform;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.beam-v {
+  top: 0;
+  width: 1px;
+  height: 190px;
+  background: linear-gradient(to bottom, transparent, var(--login-beam) 55%, transparent);
+  animation-name: beam-fall;
+}
+.beam-h {
+  left: 0;
+  height: 1px;
+  width: 230px;
+  background: linear-gradient(to right, transparent, var(--login-beam) 55%, transparent);
+  animation-name: beam-slide;
+}
+@keyframes beam-fall {
+  from {
+    transform: translateY(-200px);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+@keyframes beam-slide {
+  from {
+    transform: translateX(-240px);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+/* negative delays so they are already mid-flight on load, never in step */
+.v1 { left: calc(44px * 4);  animation-duration: 7.5s;  animation-delay: -1s; }
+.v2 { left: calc(44px * 11); animation-duration: 10s;   animation-delay: -4.2s; }
+.v3 { left: calc(44px * 19); animation-duration: 8.5s;  animation-delay: -6.4s; }
+.v4 { left: calc(44px * 27); animation-duration: 12s;   animation-delay: -2.6s; }
+.v5 { left: calc(44px * 34); animation-duration: 9s;    animation-delay: -8.1s; }
+.v6 { left: calc(44px * 42); animation-duration: 11s;   animation-delay: -5.3s; }
+/* the last few only show up on wide/tall displays, where the others have
+   already run out of screen */
+.v7 { left: calc(44px * 50); animation-duration: 8s;    animation-delay: -3.1s; }
+.v8 { left: calc(44px * 57); animation-duration: 10.5s; animation-delay: -7.4s; }
+.h1 { top: calc(44px * 3);   animation-duration: 13s;   animation-delay: -3.4s; }
+.h2 { top: calc(44px * 9);   animation-duration: 16s;   animation-delay: -9.7s; }
+.h3 { top: calc(44px * 14);  animation-duration: 14.5s; animation-delay: -12s; }
+.h4 { top: calc(44px * 20);  animation-duration: 15s;   animation-delay: -6.2s; }
+
+/* the global reduced-motion rule squashes durations to 0.01ms, which would
+   turn these into a strobe — drop them entirely instead */
+@media (prefers-reduced-motion: reduce) {
+  .login-beams {
+    display: none;
+  }
 }
 /* washes the grid out under the card and drops a warm halo behind it, so the
    card doesn't have to sit on a hard lattice */
