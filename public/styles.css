@@ -366,7 +366,8 @@ svg.ico {
   vertical-align: middle;
   stroke-width: 1.75;
 }
-[data-icon] {
+[data-icon],
+.ico-slot {
   display: inline-flex;
 }
 .ico-danger,
@@ -615,9 +616,16 @@ select {
   display: flex;
   align-items: center;
 }
+/* pin to the field's own centre — the placeholder span's line box is taller
+   than the glyph, so a static position lands a couple of pixels low */
 .input-wrap svg.ico {
   position: absolute;
   left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.6;
   color: var(--text-4);
   pointer-events: none;
   transition: color 0.15s var(--ease);
