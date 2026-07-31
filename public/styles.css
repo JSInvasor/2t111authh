@@ -755,16 +755,56 @@ select {
 }
 .login-foot {
   margin-top: 22px;
-  padding-top: 16px;
+  padding-top: 18px;
   border-top: 1px solid var(--line-soft);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 13px;
+}
+.discord-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 17px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 570;
+  transition:
+    background-color 0.16s var(--ease),
+    border-color 0.16s var(--ease),
+    color 0.16s var(--ease),
+    transform 0.16s var(--ease);
+}
+.discord-link:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.discord-link:active {
+  transform: translateY(0) scale(0.98);
+}
+.discord-link svg.ico {
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+  transition: color 0.16s var(--ease);
+}
+.discord-link:hover svg.ico {
+  color: var(--text);
+}
+.login-note {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
   font-size: 11.5px;
   color: var(--text-4);
 }
-.login-foot svg.ico {
+.login-note svg.ico {
   width: 13px;
   height: 13px;
 }
