@@ -140,7 +140,8 @@ function hydrateIcons(root = document) {
 
 function statCard(num, label, ico, cls = '') {
   return `<div class="stat ${cls}">
-    <div class="stat-top">${icon(ico)}<span class="stat-label">${esc(label)}</span></div>
+    <span class="stat-ico">${icon(ico)}</span>
+    <div class="stat-label">${esc(label)}</div>
     <div class="stat-value">${fmtNum(num)}</div>
   </div>`;
 }
