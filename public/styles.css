@@ -49,57 +49,60 @@
   --ui: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* surfaces — cream canvas, cards sit *above* it, white kept for data panels */
-  --bg: #f9f3ec;
-  --bg-tint: #f3ebe1;
+  /* surfaces — neutral grey canvas, white kept for dense data panels */
+  --bg: #f2f2f2;
+  --bg-tint: #e8e8e8;
   --surface: #ffffff;
-  --surface-2: #f7f1ea;
-  --surface-3: #efe7dd;
+  --surface-2: #f7f7f7;
+  --surface-3: #ededed;
 
-  /* pastel card washes, keyed to what the card means */
-  --wash-sand: #fdf8f2;
-  --wash-peach: #fdefe4;
-  --wash-mint: #ecf6ef;
-  --wash-rose: #fdece9;
+  /* card washes — neutral by default, colour only where it carries meaning */
+  --wash-sand: #fafafa;
+  --wash-lead: #ffffff;
+  --wash-mint: #eff5f1;
+  --wash-rose: #f8efee;
 
-  /* ink — warm, one step off pure black so it doesn't cut the pastels */
-  --text: #2a241f;
-  --text-2: #665c54;
-  --text-3: #7a6e64;
-  --text-4: #9a8d81;
+  /* ink */
+  --text: #171717;
+  --text-2: #4f4f4f;
+  --text-3: #6b6b6b;
+  --text-4: #9b9b9b;
 
   /* hairlines */
-  --line: #eee3d8;
-  --line-soft: #f5ede4;
-  --line-strong: #ded1c3;
+  --line: #e4e4e4;
+  --line-soft: #efefef;
+  --line-strong: #d2d2d2;
 
-  /* accent — soft coral ember */
-  --accent: #e2673a;
-  --accent-hover: #d1552b;
+  /* accent — monochrome: near-black carries the primary actions */
+  --accent: #262626;
+  --accent-hover: #171717;
   --accent-fg: #ffffff;
-  --accent-text: #c4552b;
-  --accent-tint: rgba(226, 103, 58, 0.1);
-  --accent-tint-2: rgba(226, 103, 58, 0.18);
-  --accent-ring: rgba(226, 103, 58, 0.22);
+  --accent-text: #171717;
+  --accent-tint: rgba(23, 23, 23, 0.055);
+  --accent-tint-2: rgba(23, 23, 23, 0.1);
+  --accent-ring: rgba(23, 23, 23, 0.15);
 
-  /* status — desaturated a step so nothing shouts */
-  --ok: #2f8f5b;
-  --ok-tint: rgba(47, 143, 91, 0.12);
-  --warn: #b8791a;
-  --warn-tint: rgba(184, 121, 26, 0.14);
-  --bad: #cf5a52;
-  --bad-tint: rgba(207, 90, 82, 0.11);
-  --bad-line: rgba(207, 90, 82, 0.26);
+  /* status — the only colour left, muted so it reads as a signal not decor */
+  --ok: #3d7c56;
+  --ok-tint: rgba(61, 124, 86, 0.11);
+  --warn: #8a6a2a;
+  --warn-tint: rgba(138, 106, 42, 0.12);
+  --bad: #a94f4a;
+  --bad-tint: rgba(169, 79, 74, 0.1);
+  --bad-line: rgba(169, 79, 74, 0.24);
 
   /* chart */
-  --chart-bar: rgba(226, 103, 58, 0.8);
-  --chart-track: rgba(120, 95, 80, 0.1);
+  --chart-bar: rgba(64, 64, 64, 0.85);
+  --chart-track: rgba(23, 23, 23, 0.08);
+
+  /* brand mark — logo.png is a white glyph used as a mask, this fills it */
+  --logo-fill: linear-gradient(155deg, #6e6e6e, #2e2e2e 58%, #1a1a1a);
 
   /* login backdrop */
-  --login-bg: #f2f0ed;
-  --login-grid: rgba(50, 45, 40, 0.075);
-  --login-glow: rgba(250, 246, 241, 0.92);
-  --login-halo: rgba(226, 103, 58, 0.13);
+  --login-bg: #ededed;
+  --login-grid: rgba(23, 23, 23, 0.07);
+  --login-glow: rgba(247, 247, 247, 0.93);
+  --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
 
   --r-xs: 10px;
@@ -112,124 +115,129 @@
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
-  --sh-xs: 0 2px 4px rgba(60, 40, 30, 0.04);
-  --sh-sm: 0 2px 6px rgba(60, 40, 30, 0.05), 0 8px 18px -8px rgba(60, 40, 30, 0.08);
-  --sh-md: 0 4px 10px rgba(60, 40, 30, 0.05), 0 18px 34px -12px rgba(60, 40, 30, 0.12);
-  --sh-lg: 0 10px 26px -8px rgba(60, 40, 30, 0.13), 0 34px 70px -18px rgba(60, 40, 30, 0.18);
-  --sh-accent: 0 2px 6px rgba(160, 60, 20, 0.18), 0 8px 20px -6px rgba(217, 83, 30, 0.36);
+  --sh-xs: 0 2px 4px rgba(23, 23, 23, 0.04);
+  --sh-sm: 0 2px 6px rgba(23, 23, 23, 0.05), 0 8px 18px -8px rgba(23, 23, 23, 0.08);
+  --sh-md: 0 4px 10px rgba(23, 23, 23, 0.05), 0 18px 34px -12px rgba(23, 23, 23, 0.12);
+  --sh-lg: 0 10px 26px -8px rgba(23, 23, 23, 0.13), 0 34px 70px -18px rgba(23, 23, 23, 0.18);
+  --sh-accent: 0 2px 6px rgba(23, 23, 23, 0.16), 0 8px 20px -6px rgba(23, 23, 23, 0.28);
 
   color-scheme: light;
 }
 
 /* dark — applied by explicit toggle *or* by system preference when untoggled */
 :root[data-theme='dark'] {
-  --bg: #121011;
-  --bg-tint: #181516;
-  --surface: #1a1719;
-  --surface-2: #221e20;
-  --surface-3: #2a2528;
+  --bg: #0d0d0d;
+  --bg-tint: #141414;
+  --surface: #171717;
+  --surface-2: #1f1f1f;
+  --surface-3: #282828;
 
-  /* dark can't do pastel literally — these are colour washes over the surface */
-  --wash-sand: #1e1a1c;
-  --wash-peach: #271c17;
-  --wash-mint: #16241b;
-  --wash-rose: #271a19;
+  --wash-sand: #1a1a1a;
+  --wash-lead: #232323;
+  --wash-mint: #16211a;
+  --wash-rose: #211817;
 
-  --text: #f5f1ee;
-  --text-2: #b6aca4;
-  --text-3: #8d8279;
-  --text-4: #6b615a;
+  --text: #f5f5f5;
+  --text-2: #a8a8a8;
+  --text-3: #858585;
+  --text-4: #646464;
 
-  --line: rgba(255, 255, 255, 0.08);
-  --line-soft: rgba(255, 255, 255, 0.05);
-  --line-strong: rgba(255, 255, 255, 0.15);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-soft: rgba(255, 255, 255, 0.055);
+  --line-strong: rgba(255, 255, 255, 0.16);
 
-  --accent: #ea7448;
-  --accent-hover: #f5875c;
-  --accent-fg: #ffffff;
-  --accent-text: #ff9a70;
-  --accent-tint: rgba(234, 116, 72, 0.14);
-  --accent-tint-2: rgba(234, 116, 72, 0.22);
-  --accent-ring: rgba(234, 116, 72, 0.32);
+  /* inverted: on a dark shell the primary action is the light one */
+  --accent: #f0f0f0;
+  --accent-hover: #ffffff;
+  --accent-fg: #171717;
+  --accent-text: #ffffff;
+  --accent-tint: rgba(255, 255, 255, 0.07);
+  --accent-tint-2: rgba(255, 255, 255, 0.13);
+  --accent-ring: rgba(255, 255, 255, 0.22);
 
-  --ok: #6ee7a0;
-  --ok-tint: rgba(110, 231, 160, 0.13);
-  --warn: #f7ce6b;
-  --warn-tint: rgba(247, 206, 107, 0.14);
-  --bad: #ff8b83;
-  --bad-tint: rgba(255, 139, 131, 0.13);
-  --bad-line: rgba(255, 139, 131, 0.3);
+  --ok: #6bbd8b;
+  --ok-tint: rgba(107, 189, 139, 0.13);
+  --warn: #d4b168;
+  --warn-tint: rgba(212, 177, 104, 0.13);
+  --bad: #e08a85;
+  --bad-tint: rgba(224, 138, 133, 0.12);
+  --bad-line: rgba(224, 138, 133, 0.28);
 
-  --chart-bar: rgba(234, 116, 72, 0.9);
-  --chart-track: rgba(255, 255, 255, 0.07);
+  --chart-bar: rgba(232, 232, 232, 0.85);
+  --chart-track: rgba(255, 255, 255, 0.08);
 
-  --login-bg: #0d0c0d;
-  --login-grid: rgba(255, 255, 255, 0.055);
-  --login-glow: rgba(17, 15, 16, 0.9);
-  --login-halo: rgba(234, 116, 72, 0.16);
-  --login-card: #1b181a;
+  --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
+
+  --login-bg: #0a0a0a;
+  --login-grid: rgba(255, 255, 255, 0.06);
+  --login-glow: rgba(13, 13, 13, 0.92);
+  --login-halo: rgba(255, 255, 255, 0.04);
+  --login-card: #171717;
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 28px -8px rgba(0, 0, 0, 0.6);
   --sh-lg: 0 12px 32px -8px rgba(0, 0, 0, 0.7), 0 32px 70px -16px rgba(0, 0, 0, 0.8);
-  --sh-accent: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px -2px rgba(226, 87, 31, 0.4);
+  --sh-accent: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 18px -4px rgba(0, 0, 0, 0.6);
 
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #121011;
-    --bg-tint: #181516;
-    --surface: #1a1719;
-    --surface-2: #221e20;
-    --surface-3: #2a2528;
+    --bg: #0d0d0d;
+    --bg-tint: #141414;
+    --surface: #171717;
+    --surface-2: #1f1f1f;
+    --surface-3: #282828;
 
-    /* dark can't do pastel literally — these are colour washes over the surface */
-    --wash-sand: #1e1a1c;
-    --wash-peach: #271c17;
-    --wash-mint: #16241b;
-    --wash-rose: #271a19;
+    --wash-sand: #1a1a1a;
+    --wash-lead: #232323;
+    --wash-mint: #16211a;
+    --wash-rose: #211817;
 
-    --text: #f5f1ee;
-    --text-2: #b6aca4;
-    --text-3: #8d8279;
-    --text-4: #6b615a;
+    --text: #f5f5f5;
+    --text-2: #a8a8a8;
+    --text-3: #858585;
+    --text-4: #646464;
 
-    --line: rgba(255, 255, 255, 0.08);
-    --line-soft: rgba(255, 255, 255, 0.05);
-    --line-strong: rgba(255, 255, 255, 0.15);
+    --line: rgba(255, 255, 255, 0.09);
+    --line-soft: rgba(255, 255, 255, 0.055);
+    --line-strong: rgba(255, 255, 255, 0.16);
 
-    --accent: #ea7448;
-    --accent-hover: #f5875c;
-    --accent-text: #ff9a70;
-    --accent-tint: rgba(234, 116, 72, 0.14);
-    --accent-tint-2: rgba(234, 116, 72, 0.22);
-    --accent-ring: rgba(234, 116, 72, 0.32);
+    /* inverted: on a dark shell the primary action is the light one */
+    --accent: #f0f0f0;
+    --accent-hover: #ffffff;
+    --accent-fg: #171717;
+    --accent-text: #ffffff;
+    --accent-tint: rgba(255, 255, 255, 0.07);
+    --accent-tint-2: rgba(255, 255, 255, 0.13);
+    --accent-ring: rgba(255, 255, 255, 0.22);
 
-    --ok: #6ee7a0;
-    --ok-tint: rgba(110, 231, 160, 0.13);
-    --warn: #f7ce6b;
-    --warn-tint: rgba(247, 206, 107, 0.14);
-    --bad: #ff8b83;
-    --bad-tint: rgba(255, 139, 131, 0.13);
-    --bad-line: rgba(255, 139, 131, 0.3);
+    --ok: #6bbd8b;
+    --ok-tint: rgba(107, 189, 139, 0.13);
+    --warn: #d4b168;
+    --warn-tint: rgba(212, 177, 104, 0.13);
+    --bad: #e08a85;
+    --bad-tint: rgba(224, 138, 133, 0.12);
+    --bad-line: rgba(224, 138, 133, 0.28);
 
-    --chart-bar: rgba(234, 116, 72, 0.9);
-    --chart-track: rgba(255, 255, 255, 0.07);
+    --chart-bar: rgba(232, 232, 232, 0.85);
+    --chart-track: rgba(255, 255, 255, 0.08);
 
-    --login-bg: #0d0c0d;
-    --login-grid: rgba(255, 255, 255, 0.055);
-    --login-glow: rgba(17, 15, 16, 0.9);
-    --login-halo: rgba(234, 116, 72, 0.16);
-    --login-card: #1b181a;
+    --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
+
+    --login-bg: #0a0a0a;
+    --login-grid: rgba(255, 255, 255, 0.06);
+    --login-glow: rgba(13, 13, 13, 0.92);
+    --login-halo: rgba(255, 255, 255, 0.04);
+    --login-card: #171717;
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 28px -8px rgba(0, 0, 0, 0.6);
     --sh-lg: 0 12px 32px -8px rgba(0, 0, 0, 0.7), 0 32px 70px -16px rgba(0, 0, 0, 0.8);
-    --sh-accent: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px -2px rgba(226, 87, 31, 0.4);
+    --sh-accent: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 18px -4px rgba(0, 0, 0, 0.6);
 
     color-scheme: dark;
   }
@@ -369,31 +377,20 @@ svg.ico {
   color: var(--text-4);
 }
 
-/* logo mark */
-.logo-tile {
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: 12px;
-  background: linear-gradient(150deg, #f5946c, var(--accent) 55%, #cc5526);
-  display: grid;
-  place-items: center;
-  padding: 6px;
-  box-shadow:
-    var(--sh-accent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-.logo-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+/* logo mark — logo.png is a white glyph on transparency, so it is used as a
+   mask and painted with --logo-fill; one asset, works on any background */
+.logo-mark {
   display: block;
+  width: 74px;
+  height: 74px;
+  flex: none;
+  background: var(--logo-fill);
+  -webkit-mask: url('logo.png') center / contain no-repeat;
+  mask: url('logo.png') center / contain no-repeat;
 }
-.logo-tile.lg {
-  width: 62px;
-  height: 62px;
-  border-radius: 21px;
-  padding: 13px;
+.logo-mark.sm {
+  width: 30px;
+  height: 30px;
 }
 
 /* -------------------------------------------------------------- buttons */
@@ -676,9 +673,9 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
   box-shadow:
-    0 1px 2px rgba(60, 40, 30, 0.05),
-    0 14px 30px -12px rgba(60, 40, 30, 0.16),
-    0 44px 80px -28px rgba(60, 40, 30, 0.22);
+    0 1px 2px rgba(23, 23, 23, 0.05),
+    0 14px 30px -12px rgba(23, 23, 23, 0.16),
+    0 44px 80px -28px rgba(23, 23, 23, 0.22);
   padding: 40px 36px 30px;
   animation: pop 0.45s var(--spring);
 }
@@ -698,16 +695,6 @@ select {
   align-items: center;
   text-align: center;
   margin-bottom: 26px;
-}
-/* logo.png is a white glyph on transparency, so it is used as a mask and
-   painted here — that keeps one asset working on any background colour */
-.logo-mark {
-  display: block;
-  width: 74px;
-  height: 74px;
-  background: linear-gradient(155deg, #f5946c, var(--accent) 52%, #c2501f);
-  -webkit-mask: url('logo.png') center / contain no-repeat;
-  mask: url('logo.png') center / contain no-repeat;
 }
 .login-brand h1 {
   margin: 14px 0 5px;
@@ -1089,10 +1076,10 @@ h2.section .count {
   letter-spacing: -0.022em;
 }
 .stat.accent .stat-value {
-  color: var(--accent-text);
+  color: var(--text);
 }
 .stat.accent {
-  background: var(--wash-peach);
+  background: var(--wash-lead);
 }
 .stat.ok {
   background: var(--wash-mint);
@@ -1101,7 +1088,9 @@ h2.section .count {
   background: var(--wash-rose);
 }
 .stat.accent .stat-ico {
-  color: var(--accent-text);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: none;
 }
 .stat.ok .stat-ico {
   color: var(--ok);
@@ -1139,7 +1128,7 @@ h2.section .count {
 }
 .script-card:hover {
   transform: translateY(-3px);
-  background: var(--wash-peach);
+  background: var(--wash-lead);
   border-color: var(--accent-tint-2);
   box-shadow: var(--sh-md);
 }
@@ -1667,7 +1656,7 @@ tr:hover .row-actions,
   width: 56px;
   height: 56px;
   border-radius: 20px;
-  background: var(--wash-peach);
+  background: var(--wash-lead);
   color: var(--accent-text);
   margin-bottom: 16px;
 }
