@@ -56,6 +56,17 @@ hesapla giriş yap.
 Giriş oturum çerezi ile yapılır (master `ADMIN_API_KEY` tarayıcıya hiç gönderilmez).
 Yeni admin eklemek / şifre değiştirmek için: `npm run create-admin -- <kullanıcı> <şifre>`.
 
+### Arayüz
+
+- **Açık / koyu tema** — ilk açılışta işletim sistemi tercihini izler, sol alttaki
+  düğmeyle değiştirilir; seçim `localStorage`'da saklanır.
+- **Tipografi** — Geist + Geist Mono (key/HWID/ID gibi teknik alanlar mono).
+  `.woff2` dosyaları `public/fonts/` altında **kendi sunucumuzda**; CDN'e istek gitmez.
+- **İkonlar** — Lucide, SVG olarak `app.js` içine gömülü. CSP `script-src 'self'`
+  olduğu için harici ikon kütüphanesi yüklenmez.
+- Panel tek sayfa (hash router) çalışır, harici JS/CSS bağımlılığı yoktur ve
+  mobilde açılır menüye düşer.
+
 ## Discord Bot
 
 Bot, dashboard ile **aynı veritabanını** kullanır (ayrı bir servis). Bir Discord
@@ -294,7 +305,7 @@ src/
                         nonce (handshake oturumları), bootstrap (loader render)
   routes/               loader (public API), dashboard (login), scripts, keys, resellers, reseller
   utils/                crypto (+ oturum proof/anahtar türetme), password (scrypt), session
-public/                 dashboard arayüzü (index.html, styles.css, app.js)
+public/                 dashboard arayüzü (index.html, styles.css, app.js, fonts/)
 bot/                    Discord bot (index, commands, register, config, util, log)
 lua/                    loader_template.lua, sha256.lua (saf Lua SHA-256/HMAC)
 scripts/                seed.js, create-admin.js

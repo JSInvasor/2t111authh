@@ -13,20 +13,29 @@ function esc(s) {
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function fmtDate(sec) {
-  if (!sec) return '—';
+  if (!sec) return '<span class="dim">—</span>';
   const d = new Date(sec * 1000);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function fmtExpiry(sec) {
-  if (!sec) return '<span class="badge">∞ Lifetime</span>';
+  if (!sec) return `<span class="badge">${icon('infinity')} Lifetime</span>`;
   const expired = sec * 1000 < Date.now();
-  return `<span class="${expired ? 'pill pill-expired' : ''}">${fmtDate(sec)}${expired ? ' (expired)' : ''}</span>`;
+  return expired
+    ? `<span class="pill pill-expired">${icon('clock')} expired</span>`
+    : fmtDate(sec);
+}
+/** 1234 → "1,234" (kept short so stat tiles never wrap) */
+function fmtNum(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return esc(n);
+  return v.toLocaleString('en-US');
 }
 
 let toastTimer;
 function toast(msg, kind = '') {
   const t = $('#toast');
-  t.textContent = msg;
+  const ico = kind === 'ok' ? 'circle-check' : kind === 'err' ? 'circle-alert' : 'info';
+  t.innerHTML = `${icon(ico)}<span>${esc(msg)}</span>`;
   t.className = 'toast show ' + kind;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.className = 'toast ' + kind), 2600);
@@ -49,17 +58,18 @@ async function copy(text) {
 /* ===================== icons (Lucide, inlined for CSP) ===================== */
 
 const ICONS = {
-  dashboard:
+  'layout-dashboard':
     '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
   key: '<path d="m15.5 7.5 3 3L22 7l-3-3"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+  'key-round':
+    '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
-  'log-out':
-    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
-  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  'log-out': '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
+  search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
-  reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   trash:
     '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   download:
@@ -67,18 +77,52 @@ const ICONS = {
   lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   unlock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>',
-  user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  'power-off':
+    '<path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/>',
+  pause: '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   users:
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  'user-plus':
+    '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+  activity:
+    '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   cpu: '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>',
+  fingerprint:
+    '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
   'circle-check': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   'circle-x': '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   settings:
     '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
-  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  'sliders-horizontal':
+    '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+  code: '<path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>',
+  terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  'shield-check':
+    '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  coins:
+    '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  infinity:
+    '<path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/>',
+  package:
+    '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  hash: '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
+  tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  inbox:
+    '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  'triangle-alert':
+    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
 };
 
 function icon(name, cls = '') {
@@ -92,8 +136,42 @@ function hydrateIcons(root = document) {
   });
 }
 
+/* ===================== small components ===================== */
+
 function statCard(num, label, ico, cls = '') {
-  return `<div class="stat ${cls}"><span class="stat-ico">${icon(ico)}</span><div class="num">${num}</div><div class="lbl">${esc(label)}</div></div>`;
+  return `<div class="stat ${cls}">
+    <div class="stat-top">${icon(ico)}<span class="stat-label">${esc(label)}</span></div>
+    <div class="stat-value">${fmtNum(num)}</div>
+  </div>`;
+}
+
+function emptyState(ico, title, text) {
+  return `<div class="empty">
+    <div class="empty-ico">${icon(ico)}</div>
+    <h3>${esc(title)}</h3>
+    <p>${esc(text)}</p>
+  </div>`;
+}
+
+function errorState(msg) {
+  return `<div class="empty">
+    <div class="empty-ico">${icon('triangle-alert')}</div>
+    <h3>Something went wrong</h3>
+    <p>${esc(msg)}</p>
+  </div>`;
+}
+
+function skeleton() {
+  return `<div class="skeleton">
+    <div class="sk sk-head"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-panel"></div>
+  </div>`;
+}
+
+/** Loader snippet: plain text for copying, lightly coloured for display. */
+function snippetHTML(text) {
+  return esc(text).replace(/&quot;(.*?)&quot;/g, '<span class="k">&quot;$1&quot;</span>');
 }
 
 /** Fill missing days with zeros across the window. daily rows: { date(epoch), total, successes }. */
@@ -110,24 +188,73 @@ function fillDaily(daily, windowDays) {
   return out;
 }
 
-/** Small inline bar chart (successes = accent, failures = muted overlay). */
+/** Column chart: full bar = attempts, filled part = successes. */
 function execChart(days) {
   const max = Math.max(1, ...days.map((d) => d.total));
-  const W = 100, H = 40, gap = 1.4;
-  const bw = (W - gap * (days.length - 1)) / days.length;
-  const bars = days
-    .map((d, i) => {
-      const x = i * (bw + gap);
-      const th = (d.total / max) * (H - 1);
-      const sh = (d.successes / max) * (H - 1);
-      const label = new Date(d.day * 86400 * 1000).toLocaleDateString();
-      const total = `<rect x="${x.toFixed(2)}" y="${(H - th).toFixed(2)}" width="${bw.toFixed(2)}" height="${Math.max(0.4, th).toFixed(2)}" rx="0.5" fill="var(--faint)" opacity="0.5"/>`;
-      const ok = sh > 0 ? `<rect x="${x.toFixed(2)}" y="${(H - sh).toFixed(2)}" width="${bw.toFixed(2)}" height="${sh.toFixed(2)}" rx="0.5" fill="var(--accent-2)"/>` : '';
-      return `<g><title>${label}: ${d.total} (${d.successes} ok)</title>${total}${ok}</g>`;
+  const cols = days
+    .map((d) => {
+      const at = new Date(d.day * 86400 * 1000);
+      const h = (d.total / max) * 100;
+      const ok = d.total ? (d.successes / d.total) * 100 : 0;
+      const tip = `${at.toLocaleDateString()} · ${d.total} run${d.total === 1 ? '' : 's'}, ${d.successes} ok`;
+      return `<div class="chart-col" title="${esc(tip)}">
+        <div class="chart-slot">
+          <div class="chart-bar" style="height:${Math.max(h, 1.5).toFixed(1)}%"><i style="height:${ok.toFixed(1)}%"></i></div>
+        </div>
+        <span class="chart-day">${esc(at.toLocaleDateString(undefined, { weekday: 'short' }))}</span>
+      </div>`;
     })
     .join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="exec-chart">${bars}</svg>`;
+  return `<div class="chart">${cols}</div>
+    <div class="chart-legend">
+      <span><i class="sw-ok"></i> Successful</span>
+      <span><i class="sw-all"></i> All attempts</span>
+    </div>`;
 }
+
+/* ===================== theme ===================== */
+
+const THEME_KEY = '2t1auth.theme';
+
+function storedTheme() {
+  try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+}
+
+function resolvedTheme() {
+  const s = storedTheme();
+  if (s === 'light' || s === 'dark') return s;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/** Only pins the attribute once the user picks a side — otherwise the CSS
+ *  media query keeps following the OS. */
+function paintThemeButton() {
+  const btn = $('#themeBtn');
+  if (!btn) return;
+  const dark = resolvedTheme() === 'dark';
+  btn.innerHTML = icon(dark ? 'sun' : 'moon');
+  btn.title = dark ? 'Switch to light' : 'Switch to dark';
+}
+
+function toggleTheme() {
+  const next = resolvedTheme() === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  document.documentElement.dataset.theme = next;
+  paintThemeButton();
+}
+
+function initTheme() {
+  const s = storedTheme();
+  if (s === 'light' || s === 'dark') document.documentElement.dataset.theme = s;
+  paintThemeButton();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!storedTheme()) paintThemeButton();
+  });
+}
+
+/* ===================== mobile nav ===================== */
+
+function closeNav() { document.body.classList.remove('nav-open'); }
 
 /* ===================== api ===================== */
 
@@ -173,18 +300,24 @@ function showLogin() {
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
+  closeNav();
 }
 
 function showApp(me) {
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
-  $('#whoami').innerHTML = `Signed in as <b>${esc(me.username)}</b>` + (me.role === 'reseller' ? ' · reseller' : '');
+  $('#whoami').innerHTML = `
+    <span class="avatar">${esc((me.username || '?').slice(0, 1))}</span>
+    <span class="whoami-meta">
+      <span class="whoami-name">${esc(me.username)}</span>
+      <span class="whoami-role">${esc(me.role === 'reseller' ? 'Reseller' : 'Administrator')}</span>
+    </span>`;
   const nav = $('#nav');
   if (me.role === 'reseller') {
-    nav.innerHTML = `<a href="#/" class="nav-item active" data-nav="panel">${icon('key')} My Keys</a>`;
+    nav.innerHTML = `<a href="#/" class="nav-item active" data-nav="panel">${icon('key-round')} My Keys</a>`;
   } else {
     nav.innerHTML =
-      `<a href="#/" class="nav-item" data-nav="dashboard">${icon('dashboard')} Dashboard</a>` +
+      `<a href="#/" class="nav-item" data-nav="dashboard">${icon('layout-dashboard')} Dashboard</a>` +
       `<a href="#/resellers" class="nav-item" data-nav="resellers">${icon('users')} Resellers</a>`;
   }
 }
@@ -198,13 +331,17 @@ $('#loginForm').addEventListener('submit', async (e) => {
   const username = $('#loginUser').value.trim();
   const password = $('#loginPass').value;
   const errEl = $('#loginError');
+  const btn = $('.login-submit');
   errEl.textContent = '';
+  btn.disabled = true;
   try {
     await api('/dashboard/api/login', { method: 'POST', body: { username, password } });
     $('#loginPass').value = '';
     boot();
   } catch (err) {
-    errEl.textContent = err.message || 'Login failed';
+    errEl.innerHTML = `${icon('circle-alert')}<span>${esc(err.message || 'Login failed')}</span>`;
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -213,9 +350,13 @@ $('#logoutBtn').addEventListener('click', async () => {
   showLogin();
 });
 
+$('#themeBtn').addEventListener('click', toggleTheme);
+$('#menuBtn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
+$('#scrim').addEventListener('click', closeNav);
+
 /* ===================== router ===================== */
 
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => { closeNav(); route(); });
 
 function route() {
   if ($('#app').classList.contains('hidden')) return;
@@ -233,49 +374,51 @@ function route() {
 async function renderScriptsList() {
   setActiveNav('dashboard');
   state.refresh = renderScriptsList;
-  view().innerHTML = '<div class="loading">Loading…</div>';
+  view().innerHTML = skeleton();
   let scripts, ov;
   try {
     [{ scripts }, { overview: ov }] = await Promise.all([
       api('/api/v1/scripts'),
       api('/api/v1/overview'),
     ]);
-  } catch (e) { view().innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  } catch (e) { view().innerHTML = errorState(e.message); return; }
 
   const t = ov.totals;
   const overviewRow = `
     <div class="stats-row">
-      ${statCard(t.executions_24h, 'Executions (24h)', 'activity', 'accent')}
-      ${statCard(t.active_users_24h, 'Active users (24h)', 'users')}
+      ${statCard(t.executions_24h, 'Executions · 24h', 'activity', 'accent')}
+      ${statCard(t.active_users_24h, 'Active users · 24h', 'users')}
       ${statCard(t.scripts, 'Scripts', 'code')}
-      ${statCard(t.keys, 'Total keys', 'key')}
-      ${statCard(t.active_keys, 'Active keys', 'circle-check', 'success')}
-      ${statCard(t.bound_keys, 'HWID-bound', 'cpu')}
+      ${statCard(t.keys, 'Total keys', 'key-round')}
+      ${statCard(t.active_keys, 'Active keys', 'circle-check', 'ok')}
+      ${statCard(t.bound_keys, 'HWID-bound', 'fingerprint')}
     </div>`;
 
   const cards = scripts.map((s) => `
     <a class="card script-card" href="#/s/${esc(s.id)}">
       <div class="card-top">
         <h3>${esc(s.name)}</h3>
-        <span class="badge">v${esc(s.version)}</span>
+        <span class="badge badge-mono">v${esc(s.version)}</span>
       </div>
       <div class="card-meta">
-        <span>${icon('key')} <b>${s.key_count}</b> keys</span>
-        <span>${icon('circle-check')} <b>${s.active_keys}</b> active</span>
-        <span>${s.obfuscate ? icon('lock') : icon('unlock')}${s.enabled ? '' : ' ' + icon('power', 'danger-ico')}</span>
+        <span>${icon('key-round')} <b>${fmtNum(s.key_count)}</b> keys</span>
+        <span>${icon('circle-check')} <b>${fmtNum(s.active_keys)}</b> active</span>
+        ${s.obfuscate ? `<span title="Obfuscated on delivery">${icon('shield-check')} protected</span>` : ''}
+        ${s.enabled ? '' : `<span class="ico-danger" title="Disabled">${icon('power-off')} disabled</span>`}
       </div>
       <code class="card-id">${esc(s.id)}</code>
+      <span class="go">${icon('chevron-right')}</span>
     </a>`).join('');
 
   view().innerHTML = `
     <div class="page-head">
-      <div><h1>Overview</h1><p class="muted">Manage your projects and keys</p></div>
-      <button class="btn btn-primary" data-action="new-script">${icon('plus')} New Script</button>
+      <div><h1>Overview</h1><p class="muted">Your projects, keys and live activity</p></div>
+      <button class="btn btn-primary" data-action="new-script">${icon('plus')} New script</button>
     </div>
     ${overviewRow}
-    <h2 class="section">Scripts</h2>
+    <h2 class="section">${icon('package')} Scripts <span class="count">${scripts.length}</span></h2>
     ${scripts.length ? `<div class="grid">${cards}</div>`
-      : `<div class="empty">No scripts yet. Create your first one to get a loader.</div>`}
+      : emptyState('package', 'No scripts yet', 'Create your first script to get a loader and start issuing keys.')}
   `;
 }
 
@@ -287,7 +430,7 @@ let currentScript = null;
 async function renderScriptDetail(id) {
   setActiveNav('dashboard');
   state.refresh = () => renderScriptDetail(id);
-  view().innerHTML = '<div class="loading">Loading…</div>';
+  view().innerHTML = skeleton();
 
   let script, stats, keys;
   try {
@@ -296,7 +439,7 @@ async function renderScriptDetail(id) {
       api(`/api/v1/scripts/${id}/stats?days=7`),
       api(`/api/v1/scripts/${id}/keys?limit=1000`),
     ]);
-  } catch (e) { view().innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  } catch (e) { view().innerHTML = errorState(e.message); return; }
 
   currentScript = script;
   currentKeys = keys;
@@ -307,42 +450,51 @@ async function renderScriptDetail(id) {
   view().innerHTML = `
     <a class="back" href="#/">${icon('arrow-left')} Scripts</a>
     <div class="page-head">
-      <div><h1>${esc(script.name)} <span class="badge">v${esc(script.version)}</span>${
-        script.obfuscate ? ` <span class="badge badge-accent">${icon('lock')} Protected</span>` : ''
-      }${
-        script.enabled ? '' : ` <span class="badge badge-danger">${icon('power')} Disabled</span>`
-      }</h1>
-        <p class="muted mono">${esc(script.id)}</p></div>
+      <div>
+        <h1>${esc(script.name)}
+          <span class="badge badge-mono">v${esc(script.version)}</span>
+          ${script.obfuscate ? `<span class="badge badge-accent">${icon('shield-check')} Protected</span>` : ''}
+          ${script.enabled ? '' : `<span class="badge badge-danger">${icon('power-off')} Disabled</span>`}
+        </h1>
+        <p class="muted mono">${esc(script.id)}</p>
+      </div>
       <button class="btn btn-primary" data-action="gen-keys">${icon('plus')} Generate keys</button>
     </div>
 
     <div class="stats-row">
-      ${statCard(ex.total, 'Executions (7d)', 'activity', 'accent')}
-      ${statCard(ex.unique_hwids, 'Unique HWIDs', 'cpu')}
-      ${statCard(ex.successes, 'Successful', 'circle-check', 'success')}
-      ${statCard(ex.failures, 'Failed', 'circle-x', 'danger')}
-      ${statCard(kc.total, 'Total keys', 'key')}
-      ${statCard(kc.active, 'Active', 'circle-check')}
+      ${statCard(ex.total, 'Executions · 7d', 'activity', 'accent')}
+      ${statCard(ex.unique_hwids, 'Unique HWIDs', 'fingerprint')}
+      ${statCard(ex.successes, 'Successful', 'circle-check', 'ok')}
+      ${statCard(ex.failures, 'Failed', 'circle-x', 'bad')}
+      ${statCard(kc.total, 'Total keys', 'key-round')}
+      ${statCard(kc.active, 'Active', 'check')}
       ${statCard(kc.bound, 'HWID-bound', 'lock')}
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h2>${icon('activity')} Executions · last ${stats.window_days}d</h2></div>
+      <div class="panel-head">
+        <h2>${icon('chart-column')} Executions <span class="sub">last ${stats.window_days} days</span></h2>
+      </div>
       <div class="panel-body">${execChart(fillDaily(stats.daily, stats.window_days))}</div>
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h2>${icon('code')} Loader</h2>
-        <button class="btn btn-sm" data-action="copy" data-copy="${esc(snippet)}">${icon('copy')} Copy snippet</button></div>
-      <pre class="snippet">${esc(snippet)}</pre>
+      <div class="panel-head">
+        <h2>${icon('terminal')} Loader</h2>
+        <button class="btn btn-sm" data-action="copy" data-copy="${esc(snippet)}">${icon('copy')} Copy snippet</button>
+      </div>
+      <pre class="snippet">${snippetHTML(snippet)}</pre>
     </div>
 
     <div class="panel">
       <div class="panel-head">
-        <h2>${icon('key')} Keys (${currentKeys.length})</h2>
+        <h2>${icon('key-round')} Keys <span class="sub">${fmtNum(currentKeys.length)}</span></h2>
         <div class="panel-actions">
-          <input id="keySearch" placeholder="Search key / note / HWID" />
-          <button class="btn btn-sm" data-action="export-csv">${icon('download')} Export CSV</button>
+          <div class="input-wrap">
+            <span data-icon="search"></span>
+            <input id="keySearch" placeholder="Search key, note or HWID" />
+          </div>
+          <button class="btn btn-sm" data-action="export-csv">${icon('download')} CSV</button>
           <button class="btn btn-primary btn-sm" data-action="gen-keys">${icon('plus')} Generate</button>
         </div>
       </div>
@@ -358,26 +510,28 @@ async function renderScriptDetail(id) {
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h2>${icon('settings')} Settings</h2></div>
+      <div class="panel-head"><h2>${icon('sliders-horizontal')} Settings</h2></div>
       <div class="panel-body">
         <form id="settingsForm">
           <div class="form-grid">
-            <div><label>Name</label><input id="setName" value="${esc(script.name)}" /></div>
-            <div><label>Version</label><input id="setVersion" value="${esc(script.version)}" /></div>
+            <div><label for="setName">Name</label><input id="setName" value="${esc(script.name)}" /></div>
+            <div><label for="setVersion">Version</label><input id="setVersion" value="${esc(script.version)}" /></div>
             <div class="full check">
               <input type="checkbox" id="setHwidLock" ${script.hwid_lock ? 'checked' : ''} />
-              <label style="margin:0">Lock each key to the first device (HWID) it runs on</label>
+              <label for="setHwidLock"><b>HWID lock</b>Bind each key to the first device it runs on.</label>
             </div>
             <div class="full check">
               <input type="checkbox" id="setObf" ${script.obfuscate ? 'checked' : ''} />
-              <label style="margin:0">Obfuscate &amp; encrypt the script each time it is delivered</label>
+              <label for="setObf"><b>Obfuscate &amp; encrypt</b>Re-scramble and encrypt the source on every delivery.</label>
             </div>
             <div class="full check">
               <input type="checkbox" id="setEnabled" ${script.enabled ? 'checked' : ''} />
-              <label style="margin:0">Enabled (uncheck for maintenance mode — all auth is rejected)</label>
+              <label for="setEnabled"><b>Enabled</b>Uncheck for maintenance mode — every auth request is rejected.</label>
             </div>
-            <div class="full"><label>Protected script source (Lua)</label>
-              <textarea id="setSource" rows="10" spellcheck="false"></textarea></div>
+            <div class="full">
+              <label for="setSource">Protected script source (Lua)</label>
+              <textarea id="setSource" rows="12" spellcheck="false"></textarea>
+            </div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">${icon('check')} Save changes</button>
@@ -392,6 +546,7 @@ async function renderScriptDetail(id) {
   // set values that shouldn't be HTML-escaped inline
   $('#setSource').value = script.source || '';
 
+  hydrateIcons(view());
   renderKeyRows(currentKeys);
 
   $('#keySearch').addEventListener('input', (e) => {
@@ -427,22 +582,23 @@ function renderKeyRows(keys) {
   const body = $('#keysBody');
   if (!body) return;
   if (!keys.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:26px">No keys</td></tr>';
+    body.innerHTML = `<tr><td colspan="7" class="table-empty">${icon('inbox')} No keys to show</td></tr>`;
     return;
   }
   body.innerHTML = keys.map((k) => {
     const banned = k.status === 'banned';
+    const statusIco = k.status === 'banned' ? 'ban' : k.status === 'paused' ? 'pause' : 'circle-check';
     return `<tr>
       <td><code>${esc(k.value)}</code></td>
-      <td><span class="pill pill-${esc(k.status)}">${icon(k.status === 'banned' ? 'ban' : k.status === 'paused' ? 'power' : 'circle-check')} ${esc(k.status)}</span></td>
+      <td><span class="pill pill-${esc(k.status)}">${icon(statusIco)} ${esc(k.status)}</span></td>
       <td class="hwid-cell" title="${esc(k.hwid || '')}">${k.hwid ? esc(k.hwid) : '—'}</td>
       <td>${fmtExpiry(k.expires_at)}</td>
-      <td>${k.total_executions}</td>
+      <td>${fmtNum(k.total_executions)}</td>
       <td>${fmtDate(k.last_seen)}</td>
       <td class="row-actions">
         <button class="icon-btn" title="Copy key" data-action="copy" data-copy="${esc(k.value)}">${icon('copy')}</button>
         <button class="icon-btn" title="${banned ? 'Unban' : 'Ban'}" data-action="key-${banned ? 'unban' : 'ban'}" data-id="${k.id}">${icon(banned ? 'check' : 'ban')}</button>
-        <button class="icon-btn" title="Reset HWID" data-action="key-reset" data-id="${k.id}">${icon('reset')}</button>
+        <button class="icon-btn" title="Reset HWID" data-action="key-reset" data-id="${k.id}">${icon('rotate-ccw')}</button>
         <button class="icon-btn danger" title="Delete key" data-action="key-delete" data-id="${k.id}">${icon('trash')}</button>
       </td>
     </tr>`;
@@ -475,27 +631,32 @@ function closeModal() { $('#modalRoot').innerHTML = ''; }
 function openModal(title, bodyHTML, footHTML) {
   $('#modalRoot').innerHTML = `
     <div class="modal-overlay" data-action="modal-backdrop">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-head"><span>${title}</span><button class="icon-btn" title="Close" data-action="modal-close">${icon('x')}</button></div>
         <div class="modal-body">${bodyHTML}</div>
         <div class="modal-foot">${footHTML}</div>
       </div>
     </div>`;
+  hydrateIcons($('#modalRoot'));
+  const first = $('#modalRoot input, #modalRoot textarea, #modalRoot select');
+  if (first) first.focus();
 }
 
 function openNewScriptModal() {
   openModal(
     'New script',
-    `<div><label>Name</label><input id="nsName" placeholder="My Hub" /></div>
-     <div><label>Version</label><input id="nsVersion" value="1.0.0" /></div>
+    `<div class="form-grid">
+       <div><label for="nsName">Name</label><input id="nsName" placeholder="My Hub" /></div>
+       <div><label for="nsVersion">Version</label><input id="nsVersion" value="1.0.0" /></div>
+     </div>
      <div class="check"><input type="checkbox" id="nsHwid" checked />
-       <label style="margin:0">Lock keys to HWID</label></div>
+       <label for="nsHwid"><b>HWID lock</b>Bind each key to one device.</label></div>
      <div class="check"><input type="checkbox" id="nsObf" checked />
-       <label style="margin:0">Obfuscate &amp; encrypt script on delivery</label></div>
-     <div><label>Script source (Lua, optional)</label>
-       <textarea id="nsSource" rows="6" placeholder='print("hello")'></textarea></div>`,
+       <label for="nsObf"><b>Obfuscate &amp; encrypt</b>Protect the source on every delivery.</label></div>
+     <div><label for="nsSource">Script source (Lua, optional)</label>
+       <textarea id="nsSource" rows="6" spellcheck="false" placeholder='print("hello")'></textarea></div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
-     <button class="btn btn-primary" data-action="create-script">${icon('plus')} Create</button>`
+     <button class="btn btn-primary" data-action="create-script">${icon('plus')} Create script</button>`
   );
 }
 
@@ -523,12 +684,21 @@ function openGenKeysModal() {
   openModal(
     'Generate keys',
     `<div class="form-grid">
-       <div><label>How many</label><input id="gkCount" type="number" value="1" min="1" max="1000" /></div>
-       <div><label>Expires in (days, 0 = lifetime)</label><input id="gkDays" type="number" value="0" min="0" /></div>
-       <div class="full"><label>Note (optional)</label><input id="gkNote" placeholder="e.g. October batch" /></div>
+       <div><label for="gkCount">How many</label><input id="gkCount" type="number" value="1" min="1" max="1000" /></div>
+       <div><label for="gkDays">Expires in (days · 0 = lifetime)</label><input id="gkDays" type="number" value="0" min="0" /></div>
+       <div class="full"><label for="gkNote">Note (optional)</label><input id="gkNote" placeholder="e.g. October batch" /></div>
      </div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
-     <button class="btn btn-primary" data-action="do-gen-keys">${icon('key')} Generate</button>`
+     <button class="btn btn-primary" data-action="do-gen-keys">${icon('key-round')} Generate</button>`
+  );
+}
+
+function keysResultModal(title, values) {
+  openModal(
+    title,
+    `<div class="keys-output">${values.map((v) => `<div>${esc(v)}</div>`).join('')}</div>`,
+    `<button class="btn btn-primary" data-action="copy" data-copy="${esc(values.join('\n'))}">${icon('copy')} Copy all</button>
+     <button class="btn" data-action="modal-close-refresh">${icon('check')} Done</button>`
   );
 }
 
@@ -541,13 +711,7 @@ async function doGenKeys() {
       method: 'POST',
       body: { count, expiresInDays: days > 0 ? days : null, note },
     });
-    const values = keys.map((k) => k.value);
-    openModal(
-      `${keys.length} key(s) generated`,
-      `<div class="keys-output">${values.map((v) => `<div>${esc(v)}</div>`).join('')}</div>`,
-      `<button class="btn btn-primary" data-action="copy" data-copy="${esc(values.join('\n'))}">${icon('copy')} Copy all</button>
-       <button class="btn" data-action="modal-close-refresh">${icon('check')} Done</button>`
-    );
+    keysResultModal(`${keys.length} key${keys.length === 1 ? '' : 's'} generated`, keys.map((k) => k.value));
   } catch (err) { toast(err.message, 'err'); }
 }
 
@@ -556,42 +720,42 @@ async function doGenKeys() {
 async function renderResellers() {
   setActiveNav('resellers');
   state.refresh = renderResellers;
-  view().innerHTML = '<div class="loading">Loading…</div>';
+  view().innerHTML = skeleton();
   let resellers;
   try { ({ resellers } = await api('/api/v1/resellers')); }
-  catch (e) { view().innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  catch (e) { view().innerHTML = errorState(e.message); return; }
 
   const rows = resellers.map((r) => `
     <tr data-open-reseller="${r.id}" style="cursor:pointer">
       <td><b>${esc(r.username)}</b></td>
-      <td>${r.credits}</td>
-      <td>${r.scripts}</td>
-      <td>${r.keys}</td>
+      <td>${fmtNum(r.credits)}</td>
+      <td>${fmtNum(r.scripts)}</td>
+      <td>${fmtNum(r.keys)}</td>
       <td>${r.enabled
         ? `<span class="pill pill-active">${icon('circle-check')} active</span>`
         : `<span class="pill pill-banned">${icon('ban')} disabled</span>`}</td>
-      <td class="row-actions"><button class="icon-btn" title="Manage" data-open-reseller="${r.id}">${icon('settings')}</button></td>
+      <td class="row-actions"><button class="icon-btn" title="Manage" data-open-reseller="${r.id}">${icon('chevron-right')}</button></td>
     </tr>`).join('');
 
   view().innerHTML = `
     <div class="page-head">
-      <div><h1>Resellers</h1><p class="muted">Sub-accounts that sell keys using credits</p></div>
-      <button class="btn btn-primary" data-action="new-reseller">${icon('plus')} New Reseller</button>
+      <div><h1>Resellers</h1><p class="muted">Sub-accounts that spend credits to issue keys</p></div>
+      <button class="btn btn-primary" data-action="new-reseller">${icon('user-plus')} New reseller</button>
     </div>
     ${resellers.length ? `<div class="panel"><div class="table-wrap"><table>
       <thead><tr><th>Username</th><th>Credits</th><th>Scripts</th><th>Keys</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`
-      : `<div class="empty">No resellers yet. Create one to delegate key generation.</div>`}
+      : emptyState('users', 'No resellers yet', 'Create one to delegate key generation without sharing admin access.')}
   `;
 }
 
 function openNewResellerModal() {
   openModal('New reseller',
-    `<div><label>Username</label><input id="nrUser" placeholder="reseller1" /></div>
-     <div><label>Password</label><input id="nrPass" type="password" placeholder="min 6 characters" /></div>
-     <div><label>Starting credits</label><input id="nrCredits" type="number" value="0" min="0" /></div>`,
+    `<div><label for="nrUser">Username</label><input id="nrUser" placeholder="reseller1" autocapitalize="none" spellcheck="false" /></div>
+     <div><label for="nrPass">Password</label><input id="nrPass" type="password" placeholder="min. 6 characters" /></div>
+     <div><label for="nrCredits">Starting credits</label><input id="nrCredits" type="number" value="0" min="0" /></div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
-     <button class="btn btn-primary" data-action="create-reseller">${icon('plus')} Create</button>`);
+     <button class="btn btn-primary" data-action="create-reseller">${icon('user-plus')} Create</button>`);
 }
 
 async function createReseller() {
@@ -610,60 +774,78 @@ async function renderResellerDetail(id) {
   setActiveNav('resellers');
   state.refresh = () => renderResellerDetail(id);
   state.resellerDetailId = id;
-  view().innerHTML = '<div class="loading">Loading…</div>';
+  view().innerHTML = skeleton();
   let reseller, assigned, allScripts;
   try {
     [{ reseller, scripts: assigned }, { scripts: allScripts }] = await Promise.all([
       api(`/api/v1/resellers/${id}`),
       api('/api/v1/scripts'),
     ]);
-  } catch (e) { view().innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  } catch (e) { view().innerHTML = errorState(e.message); return; }
 
   const assignedIds = new Set(assigned.map((s) => s.id));
   const unassigned = allScripts.filter((s) => !assignedIds.has(s.id));
   const chips = assigned.length
     ? assigned.map((s) => `<div class="chip">${esc(s.name)} <button class="chip-x" title="Unassign" data-unassign="${esc(s.id)}">${icon('x')}</button></div>`).join('')
-    : '<span class="muted">No scripts assigned.</span>';
+    : '<span class="hint">No scripts assigned yet.</span>';
   const options = unassigned.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 
   view().innerHTML = `
     <a class="back" href="#/resellers">${icon('arrow-left')} Resellers</a>
     <div class="page-head">
-      <div><h1>${esc(reseller.username)}${reseller.enabled ? '' : ` <span class="badge badge-danger">${icon('power')} Disabled</span>`}</h1>
-        <p class="muted">reseller account</p></div>
+      <div>
+        <h1>${esc(reseller.username)}
+          ${reseller.enabled ? '' : `<span class="badge badge-danger">${icon('power-off')} Disabled</span>`}
+        </h1>
+        <p class="muted">Reseller account</p>
+      </div>
     </div>
+
     <div class="stats-row">
-      ${statCard(reseller.credits, 'Credits', 'key', 'accent')}
-      ${statCard(reseller.keys, 'Keys created', 'circle-check')}
-      ${statCard(reseller.scripts, 'Scripts', 'code')}
+      ${statCard(reseller.credits, 'Credits', 'coins', 'accent')}
+      ${statCard(reseller.keys, 'Keys created', 'key-round')}
+      ${statCard(reseller.scripts, 'Scripts', 'package')}
     </div>
 
-    <div class="panel"><div class="panel-head"><h2>${icon('key')} Credits</h2></div>
-      <div class="panel-body"><div class="form-actions" style="margin:0">
-        <input id="credAmount" type="number" value="10" style="max-width:140px" />
-        <button class="btn btn-primary" data-action="add-credits" data-id="${id}">${icon('plus')} Add credits</button>
-        <span class="muted">Negative amount removes credits.</span>
-      </div></div></div>
+    <div class="panel">
+      <div class="panel-head"><h2>${icon('coins')} Credits</h2></div>
+      <div class="panel-body">
+        <div class="form-actions" style="margin:0">
+          <input id="credAmount" type="number" value="10" style="max-width:130px" />
+          <button class="btn btn-primary" data-action="add-credits" data-id="${id}">${icon('plus')} Add credits</button>
+          <span class="hint">A negative amount removes credits.</span>
+        </div>
+      </div>
+    </div>
 
-    <div class="panel"><div class="panel-head"><h2>${icon('code')} Assigned scripts</h2></div>
+    <div class="panel">
+      <div class="panel-head"><h2>${icon('package')} Assigned scripts</h2></div>
       <div class="panel-body">
         <div class="chips">${chips}</div>
-        ${unassigned.length ? `<div class="form-actions" style="margin-top:16px">
+        ${unassigned.length ? `<div class="form-actions">
           <select id="assignScript" style="max-width:260px">${options}</select>
-          <button class="btn" data-action="assign-script" data-id="${id}">Assign</button></div>` : ''}
-      </div></div>
+          <button class="btn" data-action="assign-script" data-id="${id}">${icon('plus')} Assign</button></div>` : ''}
+      </div>
+    </div>
 
-    <div class="panel"><div class="panel-head"><h2>${icon('settings')} Account</h2></div>
+    <div class="panel">
+      <div class="panel-head"><h2>${icon('settings')} Account</h2></div>
       <div class="panel-body">
-        <div class="form-grid">
-          <div class="full check"><input type="checkbox" id="resEnabled" ${reseller.enabled ? 'checked' : ''} data-action="toggle-enabled" data-id="${id}" />
-            <label style="margin:0">Enabled (login allowed)</label></div>
-          <div><label>Reset password</label><input id="resPass" type="password" placeholder="new password" /></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn" data-action="reset-reseller-pass" data-id="${id}">${icon('check')} Set password</button></div>
+        <div class="check">
+          <input type="checkbox" id="resEnabled" ${reseller.enabled ? 'checked' : ''} data-action="toggle-enabled" data-id="${id}" />
+          <label for="resEnabled"><b>Enabled</b>Allow this account to sign in.</label>
+        </div>
+        <div class="form-grid" style="margin-top:14px">
+          <div><label for="resPass">Reset password</label><input id="resPass" type="password" placeholder="new password" /></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" data-action="reset-reseller-pass" data-id="${id}">${icon('check')} Set password</button>
+          </div>
         </div>
         <div class="form-actions"><span class="spacer"></span>
-          <button class="btn btn-danger" data-action="delete-reseller" data-id="${id}" data-name="${esc(reseller.username)}">${icon('trash')} Delete reseller</button></div>
-      </div></div>
+          <button class="btn btn-danger" data-action="delete-reseller" data-id="${id}" data-name="${esc(reseller.username)}">${icon('trash')} Delete reseller</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -705,17 +887,17 @@ let resellerSelectedScript = null;
 async function renderResellerPanel() {
   setActiveNav('panel');
   state.refresh = renderResellerPanel;
-  view().innerHTML = '<div class="loading">Loading…</div>';
+  view().innerHTML = skeleton();
   let me;
   try { me = await api('/api/v1/reseller/me'); }
-  catch (e) { view().innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  catch (e) { view().innerHTML = errorState(e.message); return; }
   state.credits = me.credits;
 
   if (!me.scripts.length) {
     view().innerHTML = `
-      <div class="page-head"><div><h1>My Panel</h1><p class="muted">Generate & manage your keys</p></div></div>
-      <div class="stats-row">${statCard(me.credits, 'Credits', 'key', 'accent')}</div>
-      <div class="empty">No scripts assigned yet. Ask the admin to assign a script to your account.</div>`;
+      <div class="page-head"><div><h1>My panel</h1><p class="muted">Generate and manage your keys</p></div></div>
+      <div class="stats-row">${statCard(me.credits, 'Credits', 'coins', 'accent')}</div>
+      ${emptyState('package', 'No scripts assigned', 'Ask the admin to assign a script to your account before generating keys.')}`;
     return;
   }
 
@@ -733,27 +915,43 @@ async function renderResellerPanel() {
 
   view().innerHTML = `
     <div class="page-head">
-      <div><h1>My Panel</h1><p class="muted">Signed in as ${esc(state.username)}</p></div>
-    </div>
-    <div class="stats-row">${statCard(me.credits, 'Credits', 'key', 'accent')}${statCard(currentKeys.length, 'Your keys', 'circle-check')}</div>
-
-    <div class="panel">
-      <div class="panel-head"><h2>${icon('code')} Script &amp; loader</h2>
-        <select id="rScript" style="max-width:260px">${opts}</select></div>
-      <pre class="snippet">${esc(snippet)}</pre>
+      <div><h1>My panel</h1><p class="muted">Signed in as ${esc(state.username)}</p></div>
+      <button class="btn btn-primary" data-action="reseller-gen">${icon('plus')} Generate keys</button>
     </div>
 
+    <div class="stats-row">
+      ${statCard(me.credits, 'Credits', 'coins', 'accent')}
+      ${statCard(currentKeys.length, 'Your keys', 'key-round')}
+    </div>
+
     <div class="panel">
-      <div class="panel-head"><h2>${icon('key')} Keys (${currentKeys.length})</h2>
+      <div class="panel-head">
+        <h2>${icon('terminal')} Script &amp; loader</h2>
         <div class="panel-actions">
-          <input id="keySearch" placeholder="Search key / note / HWID" />
+          <select id="rScript" style="max-width:240px">${opts}</select>
+          <button class="btn btn-sm" data-action="copy" data-copy="${esc(snippet)}">${icon('copy')} Copy</button>
+        </div>
+      </div>
+      <pre class="snippet">${snippetHTML(snippet)}</pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>${icon('key-round')} Keys <span class="sub">${fmtNum(currentKeys.length)}</span></h2>
+        <div class="panel-actions">
+          <div class="input-wrap">
+            <span data-icon="search"></span>
+            <input id="keySearch" placeholder="Search key, note or HWID" />
+          </div>
           <button class="btn btn-primary btn-sm" data-action="reseller-gen">${icon('plus')} Generate</button>
-        </div></div>
+        </div>
+      </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Key</th><th>Status</th><th>HWID</th><th>Expires</th><th>Execs</th><th>Last seen</th><th></th></tr></thead>
         <tbody id="keysBody"></tbody></table></div>
     </div>
   `;
+  hydrateIcons(view());
   renderKeyRows(currentKeys);
   $('#keySearch').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
@@ -764,14 +962,14 @@ async function renderResellerPanel() {
 
 function openResellerGenModal() {
   openModal('Generate keys',
-    `<p class="muted" style="margin:0">Balance: <b>${state.credits}</b> credits · 1 credit per key</p>
+    `<p class="hint" style="margin:0">Balance: <b>${fmtNum(state.credits)}</b> credits · 1 credit per key</p>
      <div class="form-grid">
-       <div><label>How many</label><input id="rgCount" type="number" value="1" min="1" max="1000" /></div>
-       <div><label>Expires in (days, 0 = lifetime)</label><input id="rgDays" type="number" value="0" min="0" /></div>
-       <div class="full"><label>Note (optional)</label><input id="rgNote" placeholder="customer name…" /></div>
+       <div><label for="rgCount">How many</label><input id="rgCount" type="number" value="1" min="1" max="1000" /></div>
+       <div><label for="rgDays">Expires in (days · 0 = lifetime)</label><input id="rgDays" type="number" value="0" min="0" /></div>
+       <div class="full"><label for="rgNote">Note (optional)</label><input id="rgNote" placeholder="customer name…" /></div>
      </div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
-     <button class="btn btn-primary" data-action="reseller-do-gen">${icon('key')} Generate</button>`);
+     <button class="btn btn-primary" data-action="reseller-do-gen">${icon('key-round')} Generate</button>`);
 }
 
 async function resellerDoGen() {
@@ -784,11 +982,7 @@ async function resellerDoGen() {
       body: { script_id: resellerSelectedScript, count, expiresInDays: days > 0 ? days : null, note },
     });
     state.credits = credits;
-    const values = keys.map((k) => k.value);
-    openModal(`${keys.length} key(s) generated · ${credits} credits left`,
-      `<div class="keys-output">${values.map((v) => `<div>${esc(v)}</div>`).join('')}</div>`,
-      `<button class="btn btn-primary" data-action="copy" data-copy="${esc(values.join('\n'))}">${icon('copy')} Copy all</button>
-       <button class="btn" data-action="modal-close-refresh">${icon('check')} Done</button>`);
+    keysResultModal(`${keys.length} key${keys.length === 1 ? '' : 's'} generated · ${fmtNum(credits)} credits left`, keys.map((k) => k.value));
   } catch (err) { toast(err.message, 'err'); }
 }
 
@@ -838,6 +1032,11 @@ document.addEventListener('click', (e) => {
   }
 });
 
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeModal(); closeNav(); }
+});
+
 /* ===================== start ===================== */
+initTheme();
 hydrateIcons(); // static icons in index.html (nav, logout, login fields)
 boot();
