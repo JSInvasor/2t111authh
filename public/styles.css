@@ -95,6 +95,13 @@
   --chart-bar: rgba(226, 103, 58, 0.8);
   --chart-track: rgba(120, 95, 80, 0.1);
 
+  /* login backdrop */
+  --login-bg: #f2f0ed;
+  --login-grid: rgba(50, 45, 40, 0.075);
+  --login-glow: rgba(250, 246, 241, 0.92);
+  --login-halo: rgba(226, 103, 58, 0.13);
+  --login-card: #ffffff;
+
   --r-xs: 10px;
   --r-sm: 13px;
   --r: 18px;
@@ -156,6 +163,12 @@
   --chart-bar: rgba(234, 116, 72, 0.9);
   --chart-track: rgba(255, 255, 255, 0.07);
 
+  --login-bg: #0d0c0d;
+  --login-grid: rgba(255, 255, 255, 0.055);
+  --login-glow: rgba(17, 15, 16, 0.9);
+  --login-halo: rgba(234, 116, 72, 0.16);
+  --login-card: #1b181a;
+
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 28px -8px rgba(0, 0, 0, 0.6);
@@ -205,6 +218,12 @@
 
     --chart-bar: rgba(234, 116, 72, 0.9);
     --chart-track: rgba(255, 255, 255, 0.07);
+
+    --login-bg: #0d0c0d;
+    --login-grid: rgba(255, 255, 255, 0.055);
+    --login-glow: rgba(17, 15, 16, 0.9);
+    --login-halo: rgba(234, 116, 72, 0.16);
+    --login-card: #1b181a;
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -621,17 +640,45 @@ select {
   display: grid;
   place-items: center;
   padding: 24px;
+  background: var(--login-bg);
+  overflow: hidden;
+}
+/* the grid itself */
+.login-screen::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background-image:
+    linear-gradient(to right, var(--login-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--login-grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: center;
+}
+/* washes the grid out under the card and drops a warm halo behind it, so the
+   card doesn't have to sit on a hard lattice */
+.login-screen::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(880px, 150vw);
+  height: min(720px, 150vh);
+  transform: translate(-50%, -50%);
   background:
-    radial-gradient(760px 500px at 50% -10%, var(--accent-tint), transparent 70%),
-    radial-gradient(600px 400px at 12% 100%, rgba(120, 113, 108, 0.07), transparent 70%),
-    var(--bg);
+    radial-gradient(closest-side, var(--login-halo), transparent 100%),
+    radial-gradient(closest-side, var(--login-glow), transparent 100%);
 }
 .login-card {
+  position: relative;
+  z-index: 1;
   width: min(410px, 100%);
-  background: var(--surface);
+  background: var(--login-card);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
-  box-shadow: var(--sh-lg);
+  box-shadow:
+    0 1px 2px rgba(60, 40, 30, 0.05),
+    0 14px 30px -12px rgba(60, 40, 30, 0.16),
+    0 44px 80px -28px rgba(60, 40, 30, 0.22);
   padding: 40px 36px 30px;
   animation: pop 0.45s var(--spring);
 }
@@ -652,8 +699,18 @@ select {
   text-align: center;
   margin-bottom: 26px;
 }
+/* logo.png is a white glyph on transparency, so it is used as a mask and
+   painted here — that keeps one asset working on any background colour */
+.logo-mark {
+  display: block;
+  width: 74px;
+  height: 74px;
+  background: linear-gradient(155deg, #f5946c, var(--accent) 52%, #c2501f);
+  -webkit-mask: url('logo.png') center / contain no-repeat;
+  mask: url('logo.png') center / contain no-repeat;
+}
 .login-brand h1 {
-  margin: 18px 0 5px;
+  margin: 14px 0 5px;
   font-size: 22px;
   font-weight: 630;
   letter-spacing: -0.012em;
