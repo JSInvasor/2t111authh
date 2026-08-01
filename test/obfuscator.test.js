@@ -138,13 +138,21 @@ test('a tampered payload fails the integrity check (fengari)', { skip: !fengari 
 
 test('base64 payloads containing + and / decode correctly (fengari)', { skip: !fengari }, () => {
   // The stub decodes base64 by table lookup; "+" and "/" are the two characters
-  // a pattern-based decoder would trip over. Hammer until both have appeared.
+  // a pattern-based decoder would trip over.
+  //
+  // Whether they turn up is down to the ciphertext, which is random — so the
+  // padding below is what makes this deterministic, not the retry. A one-line
+  // source encodes to 8 base64 characters, and 8 characters miss "+" about 88%
+  // of the time; that flaked roughly one run in sixty. Padding the source out
+  // to a few hundred bytes puts several hundred characters in the payload, and
+  // the chance of one missing either symbol falls to ~1e-3. Retries are kept
+  // only to drive that into the ground.
+  const padding = "local _pad='" + 'abcdefghijklmnopqrstuvwxyz0123456789'.repeat(12) + "'\n";
   let sawPlus = false;
   let sawSlash = false;
-  for (let i = 0; i < 40 && !(sawPlus && sawSlash); i++) {
-    const stub = obfuscate(S('__R=42'), { minify: false });
-    const data = parts(stub);
-    const b64 = data.data.toString('base64');
+  for (let i = 0; i < 8 && !(sawPlus && sawSlash); i++) {
+    const stub = obfuscate(S(padding + '__R=42'), { minify: false });
+    const b64 = parts(stub).data.toString('base64');
     sawPlus = sawPlus || b64.includes('+');
     sawSlash = sawSlash || b64.includes('/');
     const r = runLua(stub);
