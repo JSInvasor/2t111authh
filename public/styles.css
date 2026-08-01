@@ -104,8 +104,7 @@
   --login-glow: rgba(247, 247, 247, 0.93);
   --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
-  --login-beam: rgba(23, 23, 23, 0.5);
-  --login-beam-glow: rgba(23, 23, 23, 0.22);
+  --login-chain: rgba(23, 23, 23, 0.17);
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -175,8 +174,7 @@
   --login-glow: rgba(13, 13, 13, 0.92);
   --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
-  --login-beam: rgba(255, 255, 255, 0.62);
-  --login-beam-glow: rgba(255, 255, 255, 0.3);
+  --login-chain: rgba(255, 255, 255, 0.16);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -236,8 +234,7 @@
     --login-glow: rgba(13, 13, 13, 0.92);
     --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
-    --login-beam: rgba(255, 255, 255, 0.62);
-    --login-beam-glow: rgba(255, 255, 255, 0.3);
+    --login-chain: rgba(255, 255, 255, 0.16);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -666,90 +663,95 @@ select {
   background-position: 0 0;
 }
 
-/* ---------------------------------------------- login: travelling beams */
-/* Segments that run along the lattice — dark on the light theme, light on
-   the dark one. They sit under the halo, so they fade out near the card. */
-.login-beams {
+/* ------------------------------------------------- login: drifting chains */
+/* Strands of interlocking links that wander across the backdrop — dark on the
+   light theme, light on the dark one. chain.svg is white on transparency and
+   painted through a mask, so one file covers both. */
+.login-chains {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
-.beam-v,
-.beam-h {
+.chain {
   position: absolute;
-  filter: drop-shadow(0 0 6px var(--login-beam-glow));
-  will-change: transform;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-.beam-v {
-  top: 0;
-  width: 1px;
-  height: 190px;
-  background: linear-gradient(to bottom, transparent, var(--login-beam) 55%, transparent);
-  animation-name: beam-fall;
-}
-.beam-h {
   left: 0;
-  height: 1px;
-  width: 230px;
-  background: linear-gradient(to right, transparent, var(--login-beam) 55%, transparent);
-  animation-name: beam-slide;
+  aspect-ratio: 574 / 64;
+  background: var(--login-chain);
+  -webkit-mask: url('chain.svg') center / contain no-repeat;
+  mask: url('chain.svg') center / contain no-repeat;
+  will-change: transform;
 }
-@keyframes beam-fall {
+/* every strand gets its own path, angle and pace so they never march in step */
+@keyframes chain-a {
   from {
-    transform: translateY(-200px);
+    transform: translate(-46vw, 0) rotate(-13deg);
   }
   to {
-    transform: translateY(100vh);
+    transform: translate(122vw, 7vh) rotate(-3deg);
   }
 }
-@keyframes beam-slide {
+@keyframes chain-b {
   from {
-    transform: translateX(-240px);
+    transform: translate(124vw, 0) rotate(11deg);
   }
   to {
-    transform: translateX(100vw);
+    transform: translate(-52vw, -9vh) rotate(21deg);
   }
 }
-/* negative delays so they are already mid-flight on load, never in step */
-.v1 { left: calc(44px * 4);  animation-duration: 7.5s;  animation-delay: -1s; }
-.v2 { left: calc(44px * 11); animation-duration: 10s;   animation-delay: -4.2s; }
-.v3 { left: calc(44px * 19); animation-duration: 8.5s;  animation-delay: -6.4s; }
-.v4 { left: calc(44px * 27); animation-duration: 12s;   animation-delay: -2.6s; }
-.v5 { left: calc(44px * 34); animation-duration: 9s;    animation-delay: -8.1s; }
-.v6 { left: calc(44px * 42); animation-duration: 11s;   animation-delay: -5.3s; }
-/* the last few only show up on wide/tall displays, where the others have
-   already run out of screen */
-.v7 { left: calc(44px * 50); animation-duration: 8s;    animation-delay: -3.1s; }
-.v8 { left: calc(44px * 57); animation-duration: 10.5s; animation-delay: -7.4s; }
-.h1 { top: calc(44px * 3);   animation-duration: 13s;   animation-delay: -3.4s; }
-.h2 { top: calc(44px * 9);   animation-duration: 16s;   animation-delay: -9.7s; }
-.h3 { top: calc(44px * 14);  animation-duration: 14.5s; animation-delay: -12s; }
-.h4 { top: calc(44px * 20);  animation-duration: 15s;   animation-delay: -6.2s; }
+@keyframes chain-c {
+  from {
+    transform: translate(-44vw, 6vh) rotate(28deg);
+  }
+  to {
+    transform: translate(126vw, -12vh) rotate(16deg);
+  }
+}
+@keyframes chain-d {
+  from {
+    transform: translate(120vw, 4vh) rotate(-26deg);
+  }
+  to {
+    transform: translate(-48vw, -6vh) rotate(-36deg);
+  }
+}
+@keyframes chain-e {
+  from {
+    transform: translate(-42vw, -5vh) rotate(6deg);
+  }
+  to {
+    transform: translate(124vw, 9vh) rotate(-6deg);
+  }
+}
+@keyframes chain-f {
+  from {
+    transform: translate(122vw, -4vh) rotate(-8deg);
+  }
+  to {
+    transform: translate(-46vw, 10vh) rotate(4deg);
+  }
+}
+/* delays are spread across each strand's own duration, so at load they are
+   scattered along their paths instead of all bunched at the entry edge */
+.c1  { width: 430px; top: 5%;  animation: chain-a 52s linear infinite -21s; }
+.c2  { width: 320px; top: 17%; animation: chain-b 67s linear infinite -46s; }
+.c3  { width: 500px; top: 28%; animation: chain-c 58s linear infinite -14s; }
+.c4  { width: 270px; top: 38%; animation: chain-d 74s linear infinite -55s; }
+.c5  { width: 390px; top: 48%; animation: chain-e 61s linear infinite -35s; }
+.c6  { width: 340px; top: 58%; animation: chain-f 80s linear infinite -22s; }
+.c7  { width: 460px; top: 68%; animation: chain-a 64s linear infinite -47s; }
+.c8  { width: 300px; top: 77%; animation: chain-c 71s linear infinite -60s; }
+.c9  { width: 410px; top: 86%; animation: chain-b 56s linear infinite -9s; }
+.c10 { width: 350px; top: 95%; animation: chain-e 69s linear infinite -52s; }
 
-/* the global reduced-motion rule squashes durations to 0.01ms, which would
-   turn these into a strobe — drop them entirely instead */
+/* the global reduced-motion rule clamps animations to 0.01ms, which would
+   make these flicker across the screen — drop them entirely instead */
 @media (prefers-reduced-motion: reduce) {
-  .login-beams {
+  .login-chains {
     display: none;
   }
 }
-/* washes the grid out under the card and drops a warm halo behind it, so the
-   card doesn't have to sit on a hard lattice */
-.login-screen::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: min(880px, 150vw);
-  height: min(720px, 150vh);
-  transform: translate(-50%, -50%);
-  background:
-    radial-gradient(closest-side, var(--login-halo), transparent 100%),
-    radial-gradient(closest-side, var(--login-glow), transparent 100%);
-}
+
 .login-card {
   position: relative;
   z-index: 1;
