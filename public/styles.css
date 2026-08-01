@@ -104,7 +104,6 @@
   --login-glow: rgba(247, 247, 247, 0.93);
   --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
-  --login-chain: rgba(23, 23, 23, 0.17);
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -174,7 +173,6 @@
   --login-glow: rgba(13, 13, 13, 0.92);
   --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
-  --login-chain: rgba(244, 244, 244, 0.15);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -234,7 +232,6 @@
     --login-glow: rgba(13, 13, 13, 0.92);
     --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
-    --login-chain: rgba(244, 244, 244, 0.15);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -574,6 +571,13 @@ select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-ring);
 }
+/* No halo on the login fields — the border alone marks focus there.
+   :focus-visible would not help: text inputs match it even on a mouse click,
+   because they take keyboard input. So this has to cover :focus outright, and
+   the border darkening is what keeps focus locatable. */
+.login-form input:focus {
+  box-shadow: none;
+}
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
@@ -661,95 +665,6 @@ select {
     linear-gradient(to bottom, var(--login-grid) 1px, transparent 1px);
   background-size: 44px 44px;
   background-position: 0 0;
-}
-
-/* ------------------------------------------------- login: hanging chains */
-/* Long strands that come down from above and sway, kept in the outer bands so
-   the card sits in clear space. chain.svg is white on transparency and painted
-   through a mask, so one file covers both themes.
-   Two nested elements on purpose: the outer one falls, the inner one swings.
-   Composing them in a single keyframe set would force the sway to share the
-   fall's timing, and the sway needs its own ease-in-out to read as a pendulum. */
-.login-chains {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.chain-drop {
-  position: absolute;
-  top: 0;
-  animation: chain-fall linear infinite;
-  will-change: transform;
-}
-.chain {
-  width: 100%;
-  aspect-ratio: 49 / 1585;
-  background: var(--login-chain);
-  -webkit-mask: url('chain.svg') top center / contain no-repeat;
-  mask: url('chain.svg') top center / contain no-repeat;
-  transform-origin: 50% 0;
-  animation: chain-sway ease-in-out infinite alternate;
-  will-change: transform;
-}
-@keyframes chain-fall {
-  from {
-    transform: translateY(-100%);
-  }
-  to {
-    transform: translateY(100vh);
-  }
-}
-@keyframes chain-sway {
-  from {
-    transform: translateX(-22px) rotate(-2.2deg);
-  }
-  to {
-    transform: translateX(22px) rotate(2.4deg);
-  }
-}
-
-/* Anchored to the left and right edges. The percentages stay outside the
-   880px card, and every strand runs at its own pace so the two sides never
-   swing together. */
-.d1 { left: 1%;   width: 74px; animation-duration: 58s; animation-delay: -14s; }
-.d2 { left: 7%;   width: 58px; animation-duration: 76s; animation-delay: -49s; }
-.d3 { left: 13%;  width: 86px; animation-duration: 65s; animation-delay: -31s; }
-.d4 { left: 4%;   width: 62px; animation-duration: 88s; animation-delay: -70s; }
-.d5 { right: 1%;  width: 80px; animation-duration: 62s; animation-delay: -22s; }
-.d6 { right: 8%;  width: 60px; animation-duration: 81s; animation-delay: -56s; }
-.d7 { right: 14%; width: 90px; animation-duration: 70s; animation-delay: -38s; }
-.d8 { right: 5%;  width: 66px; animation-duration: 94s; animation-delay: -8s; }
-
-.d1 .chain { animation-duration: 9s;  animation-delay: -3s; }
-.d2 .chain { animation-duration: 12s; animation-delay: -7s; }
-.d3 .chain { animation-duration: 10s; animation-delay: -1s; }
-.d4 .chain { animation-duration: 14s; animation-delay: -9s; }
-.d5 .chain { animation-duration: 11s; animation-delay: -5s; }
-.d6 .chain { animation-duration: 13s; animation-delay: -2s; }
-.d7 .chain { animation-duration: 8.5s; animation-delay: -6s; }
-.d8 .chain { animation-duration: 15s; animation-delay: -11s; }
-
-/* Widths are fixed px, so on a narrow screen the strands end up enormous next
-   to a 342px card. Thin them out and drop the inner ones. */
-@media (max-width: 900px) {
-  .login-chains .chain-drop {
-    width: 44px;
-  }
-  .d3,
-  .d4,
-  .d7,
-  .d8 {
-    display: none;
-  }
-}
-
-/* the global reduced-motion rule clamps animations to 0.01ms, which would
-   make these flicker across the screen — drop them entirely instead */
-@media (prefers-reduced-motion: reduce) {
-  .login-chains {
-    display: none;
-  }
 }
 
 .login-card {
