@@ -1,65 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="2t1auth — script authentication & key management dashboard" />
     <title>2t1auth — Dashboard</title>
     <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="preload" href="fonts/quicksand-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/geist-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="ambient" aria-hidden="true"></div>
 
-    <!-- Login (macOS-style window) -->
+    <!-- ------------------------------------------------------------ login -->
     <div id="login" class="login-screen hidden">
-      <div class="login-modal">
-        <div class="login-titlebar">
-          <div class="login-traffic">
-            <span class="login-dot red"></span>
-            <span class="login-dot yellow"></span>
-            <span class="login-dot green"></span>
-          </div>
-          <div class="login-titlebar-title">2t1auth</div>
+      <div class="login-chains" aria-hidden="true">
+        <div class="chain-drop d1"><div class="chain"></div></div>
+        <div class="chain-drop d2"><div class="chain"></div></div>
+        <div class="chain-drop d3"><div class="chain"></div></div>
+        <div class="chain-drop d4"><div class="chain"></div></div>
+        <div class="chain-drop d5"><div class="chain"></div></div>
+        <div class="chain-drop d6"><div class="chain"></div></div>
+        <div class="chain-drop d7"><div class="chain"></div></div>
+        <div class="chain-drop d8"><div class="chain"></div></div>
+      </div>
+      <div class="login-card">
+        <div class="login-pane">
+        <div class="login-brand">
+          <span class="logo-mark" role="img" aria-label="2t1auth"></span>
+          <h1>Welcome back</h1>
+          <p>Sign in to your 2t1auth dashboard</p>
         </div>
-        <form id="loginForm" class="login-body">
-          <div class="login-brand">
-            <div class="logo-tile lg"><img src="logo.png" alt="2t1auth" /></div>
-            <h3>Welcome back</h3>
-            <p>Sign in to your dashboard</p>
+        <form id="loginForm" class="login-form">
+          <div class="field">
+            <label for="loginUser">Username</label>
+            <div class="input-wrap">
+              <span data-icon="circle-user"></span>
+              <input
+                id="loginUser"
+                name="username"
+                placeholder="admin"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                required
+              />
+            </div>
           </div>
-          <div class="login-field">
-            <label>Username</label>
-            <input id="loginUser" name="username" placeholder="Username" autocomplete="username" required />
+          <div class="field">
+            <label for="loginPass">Password</label>
+            <div class="input-wrap">
+              <span data-icon="lock-keyhole"></span>
+              <input
+                id="loginPass"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                autocomplete="current-password"
+                required
+              />
+            </div>
           </div>
-          <div class="login-field">
-            <label>Password</label>
-            <input id="loginPass" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
-          </div>
-          <button type="submit" class="login-submit">Sign in</button>
-          <div id="loginError" class="login-error"></div>
+          <button type="submit" class="btn btn-primary login-submit">Sign in</button>
+          <div id="loginError" class="login-error" role="alert"></div>
         </form>
+        <div class="login-foot">
+          <a
+            class="discord-link"
+            href="https://discord.gg/MeH2SsQC5C"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span data-icon="discord"></span> Join our Discord
+          </a>
+          <span class="login-note"><span data-icon="shield-check"></span> Protected area · authorised access only</span>
+        </div>
+        </div>
+
+        <aside class="login-aside">
+          <div class="aside-art" aria-hidden="true"></div>
+          <div class="aside-copy">
+            <h2>Protection your users never notice</h2>
+            <p>HWID-bound keys, re-obfuscated on every delivery, with live execution stats.</p>
+          </div>
+        </aside>
       </div>
     </div>
 
-    <!-- App shell -->
+    <!-- -------------------------------------------------------- app shell -->
     <div id="app" class="app hidden">
-      <aside class="sidebar">
+      <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+      <aside class="sidebar" id="sidebar">
         <div class="brand">
-          <div class="logo-tile"><img src="logo.png" alt="" /></div>
+          <span class="logo-mark sm" role="img" aria-label="2t1auth"></span>
           <span class="brand-text">2t1<span>auth</span></span>
         </div>
+
         <div class="nav-label">Menu</div>
         <nav class="nav" id="nav"></nav>
-        <div class="sidebar-footer">
+
+        <div class="sidebar-foot">
           <div class="whoami" id="whoami"></div>
-          <button id="logoutBtn" class="btn-ghost"><span data-icon="log-out"></span> Log out</button>
+          <div class="sidebar-actions">
+            <button id="logoutBtn" class="btn-ghost"><span data-icon="log-out"></span> Log out</button>
+            <button id="themeBtn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+          </div>
         </div>
       </aside>
-      <main class="content" id="view"></main>
+
+      <div>
+        <header class="topbar">
+          <button id="menuBtn" class="icon-btn" title="Menu" aria-label="Open menu">
+            <span data-icon="menu"></span>
+          </button>
+          <div class="brand">
+            <span class="logo-mark sm" role="img" aria-label="2t1auth"></span>
+            <span class="brand-text">2t1<span>auth</span></span>
+          </div>
+        </header>
+        <main class="content" id="view"></main>
+      </div>
     </div>
 
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="modalRoot"></div>
 
     <script src="app.js"></script>

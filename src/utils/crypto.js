@@ -33,4 +33,51 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-module.exports = { randomString, generateKey, generateScriptId, safeEqual };
+/* ----------------------- loader session binding -----------------------
+ * These three helpers are mirrored byte-for-byte by the Lua loader
+ * (lua/loader_template.lua + lua/sha256.lua). Change one side and you must
+ * change the other, or every auth will fail its proof check.
+ *
+ * Fields are joined with "|", which is safe because every component is
+ * normalised to a charset that excludes it (see services/auth.js).
+ */
+
+function joinFields(parts) {
+  return parts.map((p) => (p == null ? '' : String(p))).join('|');
+}
+
+/**
+ * Proof the loader sends with /api/v1/auth: HMAC-SHA256, keyed by the salt the
+ * handshake just handed out, over the request it is about to make. Ties the
+ * handshake to this exact auth call — a captured request can't be edited
+ * (different hwid/key/executor ⇒ different proof) and the salt never appears
+ * in the auth request itself.
+ */
+function sessionProof({ salt, nonce, scriptId, key, hwid, executor }) {
+  return crypto
+    .createHmac('sha256', String(salt))
+    .update(joinFields([nonce, scriptId, key, hwid, executor]))
+    .digest('hex');
+}
+
+/**
+ * Key the delivered payload is encrypted under. Derived from values only the
+ * live session knows, so a payload lifted out of a proxy log or shared around
+ * is undecryptable without replaying the whole handshake as that same client.
+ * @returns {Buffer} 32 raw bytes
+ */
+function sessionKey({ salt, nonce, scriptId, key, hwid }) {
+  return crypto
+    .createHash('sha256')
+    .update(joinFields([salt, nonce, scriptId, key, hwid]))
+    .digest();
+}
+
+module.exports = {
+  randomString,
+  generateKey,
+  generateScriptId,
+  safeEqual,
+  sessionProof,
+  sessionKey,
+};
