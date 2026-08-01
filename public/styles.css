@@ -174,7 +174,7 @@
   --login-glow: rgba(13, 13, 13, 0.92);
   --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
-  --login-chain: rgba(255, 255, 255, 0.16);
+  --login-chain: rgba(244, 244, 244, 0.15);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -234,7 +234,7 @@
     --login-glow: rgba(13, 13, 13, 0.92);
     --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
-    --login-chain: rgba(255, 255, 255, 0.16);
+    --login-chain: rgba(244, 244, 244, 0.15);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -663,86 +663,86 @@ select {
   background-position: 0 0;
 }
 
-/* ------------------------------------------------- login: drifting chains */
-/* Strands of interlocking links that wander across the backdrop — dark on the
-   light theme, light on the dark one. chain.svg is white on transparency and
-   painted through a mask, so one file covers both. */
+/* ------------------------------------------------- login: hanging chains */
+/* Long strands that come down from above and sway, kept in the outer bands so
+   the card sits in clear space. chain.svg is white on transparency and painted
+   through a mask, so one file covers both themes.
+   Two nested elements on purpose: the outer one falls, the inner one swings.
+   Composing them in a single keyframe set would force the sway to share the
+   fall's timing, and the sway needs its own ease-in-out to read as a pendulum. */
 .login-chains {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
-.chain {
+.chain-drop {
   position: absolute;
-  left: 0;
-  aspect-ratio: 574 / 64;
-  background: var(--login-chain);
-  -webkit-mask: url('chain.svg') center / contain no-repeat;
-  mask: url('chain.svg') center / contain no-repeat;
+  top: 0;
+  animation: chain-fall linear infinite;
   will-change: transform;
 }
-/* every strand gets its own path, angle and pace so they never march in step */
-@keyframes chain-a {
+.chain {
+  width: 100%;
+  aspect-ratio: 49 / 1585;
+  background: var(--login-chain);
+  -webkit-mask: url('chain.svg') top center / contain no-repeat;
+  mask: url('chain.svg') top center / contain no-repeat;
+  transform-origin: 50% 0;
+  animation: chain-sway ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes chain-fall {
   from {
-    transform: translate(-46vw, 0) rotate(-13deg);
+    transform: translateY(-100%);
   }
   to {
-    transform: translate(122vw, 7vh) rotate(-3deg);
+    transform: translateY(100vh);
   }
 }
-@keyframes chain-b {
+@keyframes chain-sway {
   from {
-    transform: translate(124vw, 0) rotate(11deg);
+    transform: translateX(-22px) rotate(-2.2deg);
   }
   to {
-    transform: translate(-52vw, -9vh) rotate(21deg);
+    transform: translateX(22px) rotate(2.4deg);
   }
 }
-@keyframes chain-c {
-  from {
-    transform: translate(-44vw, 6vh) rotate(28deg);
+
+/* Anchored to the left and right edges. The percentages stay outside the
+   880px card, and every strand runs at its own pace so the two sides never
+   swing together. */
+.d1 { left: 1%;   width: 74px; animation-duration: 58s; animation-delay: -14s; }
+.d2 { left: 7%;   width: 58px; animation-duration: 76s; animation-delay: -49s; }
+.d3 { left: 13%;  width: 86px; animation-duration: 65s; animation-delay: -31s; }
+.d4 { left: 4%;   width: 62px; animation-duration: 88s; animation-delay: -70s; }
+.d5 { right: 1%;  width: 80px; animation-duration: 62s; animation-delay: -22s; }
+.d6 { right: 8%;  width: 60px; animation-duration: 81s; animation-delay: -56s; }
+.d7 { right: 14%; width: 90px; animation-duration: 70s; animation-delay: -38s; }
+.d8 { right: 5%;  width: 66px; animation-duration: 94s; animation-delay: -8s; }
+
+.d1 .chain { animation-duration: 9s;  animation-delay: -3s; }
+.d2 .chain { animation-duration: 12s; animation-delay: -7s; }
+.d3 .chain { animation-duration: 10s; animation-delay: -1s; }
+.d4 .chain { animation-duration: 14s; animation-delay: -9s; }
+.d5 .chain { animation-duration: 11s; animation-delay: -5s; }
+.d6 .chain { animation-duration: 13s; animation-delay: -2s; }
+.d7 .chain { animation-duration: 8.5s; animation-delay: -6s; }
+.d8 .chain { animation-duration: 15s; animation-delay: -11s; }
+
+/* Widths are fixed px, so on a narrow screen the strands end up enormous next
+   to a 342px card. Thin them out and drop the inner ones. */
+@media (max-width: 900px) {
+  .login-chains .chain-drop {
+    width: 44px;
   }
-  to {
-    transform: translate(126vw, -12vh) rotate(16deg);
+  .d3,
+  .d4,
+  .d7,
+  .d8 {
+    display: none;
   }
 }
-@keyframes chain-d {
-  from {
-    transform: translate(120vw, 4vh) rotate(-26deg);
-  }
-  to {
-    transform: translate(-48vw, -6vh) rotate(-36deg);
-  }
-}
-@keyframes chain-e {
-  from {
-    transform: translate(-42vw, -5vh) rotate(6deg);
-  }
-  to {
-    transform: translate(124vw, 9vh) rotate(-6deg);
-  }
-}
-@keyframes chain-f {
-  from {
-    transform: translate(122vw, -4vh) rotate(-8deg);
-  }
-  to {
-    transform: translate(-46vw, 10vh) rotate(4deg);
-  }
-}
-/* delays are spread across each strand's own duration, so at load they are
-   scattered along their paths instead of all bunched at the entry edge */
-.c1  { width: 430px; top: 5%;  animation: chain-a 52s linear infinite -21s; }
-.c2  { width: 320px; top: 17%; animation: chain-b 67s linear infinite -46s; }
-.c3  { width: 500px; top: 28%; animation: chain-c 58s linear infinite -14s; }
-.c4  { width: 270px; top: 38%; animation: chain-d 74s linear infinite -55s; }
-.c5  { width: 390px; top: 48%; animation: chain-e 61s linear infinite -35s; }
-.c6  { width: 340px; top: 58%; animation: chain-f 80s linear infinite -22s; }
-.c7  { width: 460px; top: 68%; animation: chain-a 64s linear infinite -47s; }
-.c8  { width: 300px; top: 77%; animation: chain-c 71s linear infinite -60s; }
-.c9  { width: 410px; top: 86%; animation: chain-b 56s linear infinite -9s; }
-.c10 { width: 350px; top: 95%; animation: chain-e 69s linear infinite -52s; }
 
 /* the global reduced-motion rule clamps animations to 0.01ms, which would
    make these flicker across the screen — drop them entirely instead */
