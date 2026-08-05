@@ -311,3 +311,65 @@ sudo tar -czf ~/2t1auth-yedek-$(date +%F).tar.gz -C /opt/2t1auth data
 - **Fontlar/arayüz eski** → yanlış branch'ten arşiv gitmiş. Adım 3'ü `git checkout` ile tekrarla, sonra Cloudflare cache'ini purge et.
 - **`better-sqlite3` derleme hatası** → `node -v` 20 mi? Değilse `sudo bash deploy/setup.sh` tekrar; `build-essential` gerekli.
 - **SSH kesildi** → ufw özel SSH portuna izin vermemiş. Sağlayıcının konsolundan gir, `sudo ufw allow <PORT>/tcp`.
+
+### 443 portu başka bir servise ait
+
+Sunucuda zaten 443'ü tutan bir şey varsa (`sudo ss -tlnp | grep :443` kimin
+tuttuğunu söyler) nginx o porta bağlanamaz, `reload` sessizce eski config'le
+kalır ve Cloudflare **526** döner — çünkü karşısında bizim sertifikamız değil,
+o servisin sertifikası vardır. Bunu şöyle görürsün:
+
+```bash
+sudo openssl s_client -connect 127.0.0.1:443 -servername 2t1.online </dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer -subject
+```
+
+İki servis de kalacaksa nginx'i Cloudflare'in origin için kabul ettiği başka bir
+HTTPS portuna al — **2053, 2083, 2087, 2096, 8443** — ve Cloudflare'de bir Origin
+Rule ile oraya yönlendir. Ziyaretçi yine normal `https://2t1.online` kullanır.
+
+```bash
+# 1) portun boş olduğunu doğrula
+sudo ss -tlnp | grep :8443 || echo "8443 boş"
+
+# 2) nginx'i o porta al (sites-available olanı düzenle, sites-enabled symlink)
+sudo sed -i -e 's/^\(\s*listen \)443\( ssl.*\)$/\18443\2/' \
+            -e 's/^\(\s*listen \[::\]:\)443\( ssl.*\)$/\18443\2/' \
+            /etc/nginx/sites-available/2t1.online
+
+sudo ufw allow 8443/tcp
+sudo nginx -t && sudo systemctl reload nginx
+
+# 3) doğrula — kendi sertifikamız çıkmalı ve app'e ulaşmalı
+sudo openssl s_client -connect 127.0.0.1:8443 -servername 2t1.online </dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer
+curl -sk https://127.0.0.1:8443/dashboard/ -H 'Host: 2t1.online' -o /dev/null -w "%{http_code}\n"
+```
+
+Sonra Cloudflare panelinde: **Rules → Origin Rules → Create rule** → eşleşme
+"All incoming requests" → **Destination Port: Rewrite to `8443`** → Deploy.
+
+> Bu değişiklik `/etc/nginx/` içinde yaşıyor, depoda değil. `deploy/nginx/…conf`
+> dosyasını sunucuya tekrar kopyalarsan port 443'e geri döner — kopyaladıysan
+> yukarıdaki `sed`'i tekrar çalıştır.
+
+### `NODE_MODULE_VERSION` uyuşmazlığı
+
+```
+The module … better_sqlite3.node was compiled against a different Node.js version
+using NODE_MODULE_VERSION 127. This version of Node.js requires NODE_MODULE_VERSION 115.
+```
+
+Sunucuda birden fazla Node var: `npm install` biriyle derlemiş, systemd
+(`ExecStart=/usr/bin/node`) başkasıyla çalıştırıyor. `setup.sh` mevcut Node 18+
+ise kurulumu atladığı için bu ikilik fark edilmeden kalabiliyor.
+(127 = Node 22, 115 = Node 20.) systemd'nin kullandığı Node ile yeniden derle:
+
+```bash
+which -a node npm && /usr/bin/node -v
+cd /opt/2t1auth
+sudo rm -rf node_modules
+sudo -u 2t1auth /usr/bin/npm install --omit=dev
+/usr/bin/node -e "require('/opt/2t1auth/node_modules/better-sqlite3'); console.log('ok')"
+sudo systemctl restart 2t1auth
+```
