@@ -784,6 +784,10 @@ select {
 .aside-copy {
   position: relative;
   z-index: 1;
+  /* the feature spines below are deliberately wider than they render, so the
+     column has to be allowed to shrink under its own min-content width */
+  flex: 1;
+  min-width: 0;
 }
 .aside-copy::before {
   content: '';
@@ -794,6 +798,7 @@ select {
 }
 .aside-copy h2 {
   margin: 0;
+  max-width: 22ch;
   font-size: 24px;
   line-height: 1.25;
   font-weight: 630;
@@ -801,13 +806,115 @@ select {
   color: #fbfbfb;
   text-wrap: balance;
 }
-.aside-copy p {
-  margin: 12px 0 0;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.62);
-  max-width: 30ch;
+/* ------------------------------------------------- login feature strip
+   Adapted from Uiverse.io "accordion" by joe-watson-sbf (MIT): panels sit
+   side by side as spines, and the one under the pointer takes the width
+   while its label swings back upright. What used to be here was one
+   comma-stuffed sentence naming all three things at once; this gives each
+   its own panel and lets the reader pick. */
+.feat {
+  display: flex;
+  gap: 6px;
+  /* tall enough for the longest label to run down a shut spine — measured at
+     ~111px including the padding that becomes vertical once rotated */
+  height: 150px;
+  margin-top: 22px;
+}
+.feat-item {
+  flex: 1;
+  min-width: 0; /* a shut spine is narrower than its label — let it clip */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.035);
+  transition:
+    flex 0.5s var(--ease),
+    background-color 0.3s var(--ease),
+    border-color 0.3s var(--ease);
+}
+/* the label needs room along the axis it is rotated onto, so the span is
+   wider than a shut panel and simply gets clipped by it */
+.feat-item span {
+  min-width: 12em;
+  padding: 0 11px;
+  text-align: center;
+  transform: rotate(-90deg);
+  transition: transform 0.5s var(--ease);
+}
+.feat-item b {
+  display: block;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+/* collapsed to nothing rather than just faded, so a shut panel's copy keeps
+   its label centred instead of shoving it off the spine */
+.feat-item em {
+  display: block;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-style: normal;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.6);
   text-wrap: pretty;
+  transition:
+    max-height 0.5s var(--ease),
+    margin-top 0.5s var(--ease),
+    opacity 0.3s var(--ease);
+}
+
+/* Three states in cascade order: the first panel opens by default, any hover
+   on the strip shuts every panel (outweighing that default), and the panel
+   actually under the pointer reopens on the tie-break of source order. */
+.feat-item:first-child {
+  flex: 6;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.feat-item:first-child span {
+  transform: none;
+}
+.feat-item:first-child em {
+  max-height: 8em;
+  margin-top: 10px;
+  opacity: 1;
+}
+
+.feat:hover .feat-item {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.13);
+}
+.feat:hover .feat-item span {
+  transform: rotate(-90deg);
+}
+.feat:hover .feat-item em {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+}
+
+.feat .feat-item:hover {
+  flex: 6;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.feat .feat-item:hover span {
+  transform: none;
+}
+.feat .feat-item:hover em {
+  max-height: 8em;
+  margin-top: 10px;
+  opacity: 1;
 }
 @keyframes pop {
   from {
