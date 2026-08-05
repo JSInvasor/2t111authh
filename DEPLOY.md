@@ -286,11 +286,14 @@ yok sayıldığı için `pull` onlara dokunmaz:
 ```bash
 cd /opt/2t1auth
 sudo systemctl stop 2t1auth
-sudo git pull
-sudo chown -R 2t1auth:2t1auth /opt/2t1auth
+sudo -u 2t1auth git pull            # servis kullanıcısı olarak — dosyaların sahibi o
 sudo -u 2t1auth npm install --omit=dev
 sudo systemctl start 2t1auth
 ```
+
+> `sudo git pull` (yani root olarak) yerine `sudo -u 2t1auth` kullanmamızın
+> sebebi: klasör `2t1auth` kullanıcısına ait, root'un başkasına ait bir depoda
+> git çalıştırması `detected dubious ownership` hatası verir.
 
 **Yedekleme** — tek dosya: `/opt/2t1auth/data/2t1auth.db`. WAL modunda olduğu
 için `.db`, `.db-wal`, `.db-shm` üçünü birlikte kopyala:
