@@ -112,37 +112,47 @@ ekle/güncelle (varsa eski veya yanlış A kayıtlarını sil):
 
 ---
 
-## Adım 3 — Kodu VPS'e gönder
+## Adım 3 — Kodu VPS'e getir
 
-> **Önce doğru branch'te olduğundan emin ol.** Arayüz çalışmasının tamamı
+Depo herkese açık, yani kodu doğrudan VPS'te çekebilirsin — bilgisayarındaki
+klasöre hiç dokunmana gerek yok, tar/scp yok, şifre sorulmaz.
+
+> **Branch'e dikkat.** Arayüz çalışmasının tamamı
 > `claude/kanka-anti-tamper-dev-74egn7` branch'inde; `main` bunun epey gerisinde.
-> Yanlış branch'ten arşiv alırsan VPS'e eski arayüz gider.
-
-**Windows'ta (Git Bash):**
+> `-b` bayrağını atlarsan VPS'e eski arayüz iner.
 
 ```bash
-cd "/c/Users/efesa/OneDrive/Masaüstü/2t1auth"
+sudo apt-get install -y git
+sudo git clone -b claude/kanka-anti-tamper-dev-74egn7 \
+  https://github.com/JSInvasor/2t111authh.git /opt/2t1auth
 
-git fetch origin
-git checkout claude/kanka-anti-tamper-dev-74egn7
-git pull
-git log --oneline -1          # en üstte son commit'i görmelisin
-
-tar --exclude=node_modules --exclude=data --exclude=.env --exclude=.git \
-    -czf /tmp/2t1auth.tar.gz .
-scp /tmp/2t1auth.tar.gz dbg@5.189.165.10:~/
+cd /opt/2t1auth
+git log --oneline -1                 # en son commit
+ls public/fonts                      # 4 adet .woff2 → yeni arayüz geldi demektir
 ```
 
-> `--exclude=data` şart: depoda eski bir geliştirme veritabanı takipli duruyor
-> ve dışlanmazsa üretim verisinin üstüne biner.
+<details>
+<summary>Alternatif: kendi klasöründen göndermek istersen (tar + scp)</summary>
 
-**VPS'te aç:**
+Yalnızca bilgisayarındaki klasörde GitHub'a gönderilmemiş bir şey varsa gerekir.
+Windows 10/11'de `tar` ve `scp` hazır gelir, Git Bash şart değil — klasöre
+Shift + sağ tık → "PowerShell penceresini burada aç":
+
+```powershell
+tar --exclude=node_modules --exclude=data --exclude=.env --exclude=.git `
+    -czf "$env:TEMP\2t1auth.tar.gz" .
+scp "$env:TEMP\2t1auth.tar.gz" dbg@5.189.165.10:~/
+```
+
+VPS'te:
 
 ```bash
 sudo mkdir -p /opt/2t1auth
 sudo tar -xzf ~/2t1auth.tar.gz -C /opt/2t1auth
-ls /opt/2t1auth/public/fonts    # 4 adet .woff2 görmelisin — yeni arayüz geldi demektir
+ls /opt/2t1auth/public/fonts
 ```
+
+</details>
 
 ---
 
@@ -270,15 +280,15 @@ sudo systemctl daemon-reload && sudo systemctl enable --now 2t1auth-bot
 | Durum | `systemctl status 2t1auth` |
 | Dashboard eskimiş görünürse | Cloudflare → Caching → **Purge Everything** |
 
-**Kod güncelleme** (veriye dokunmadan):
+**Kod güncelleme** (veriye dokunmadan). `data/` ve `.env` git tarafından
+yok sayıldığı için `pull` onlara dokunmaz:
 
 ```bash
-# Windows'ta: git pull + tar + scp (Adım 3)
-# VPS'te:
+cd /opt/2t1auth
 sudo systemctl stop 2t1auth
-sudo tar -xzf ~/2t1auth.tar.gz -C /opt/2t1auth      # data/ ve .env arşivde yok, korunur
+sudo git pull
 sudo chown -R 2t1auth:2t1auth /opt/2t1auth
-cd /opt/2t1auth && sudo -u 2t1auth npm install --omit=dev
+sudo -u 2t1auth npm install --omit=dev
 sudo systemctl start 2t1auth
 ```
 
