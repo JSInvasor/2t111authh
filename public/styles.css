@@ -343,6 +343,10 @@ table td,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    /* staggered delays survive a clamped duration and turn what should be a
+       single instant change into a stepped one — exactly the flicker this
+       block exists to prevent (the login label's per-letter wipe is one) */
+    transition-delay: 0s !important;
   }
 }
 
@@ -644,10 +648,14 @@ select {
 .float-label span {
   display: inline-block;
   min-width: 3px;
-  /* the overshoot is what gives each letter its little hop */
+  /* Letters lift and fade rather than parking above the box, so the label
+     wipes itself away as the field takes over — and writes itself back in,
+     dropping from above, when the field is left empty. The stagger below is
+     what makes it read as a wipe instead of one block fading; it is declared
+     on this rule, not the lifted one, so both directions run the same way. */
   transition:
-    transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
-    color 0.2s var(--ease);
+    transform 0.42s var(--ease),
+    opacity 0.34s var(--ease);
 }
 .float-label span:nth-child(1) { transition-delay: 0ms; }
 .float-label span:nth-child(2) { transition-delay: 35ms; }
@@ -662,8 +670,8 @@ select {
    on an empty optional field */
 .input-wrap input:focus + .float-label span,
 .input-wrap input:not(:placeholder-shown) + .float-label span {
-  transform: translateY(-31px);
-  color: var(--text-2);
+  transform: translateY(-24px);
+  opacity: 0;
 }
 .input-wrap {
   position: relative;
