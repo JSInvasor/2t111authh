@@ -16,7 +16,8 @@ Type=simple
 User=2t1auth
 Group=2t1auth
 WorkingDirectory=/opt/2t1auth
-ExecStart=/usr/bin/node bot/index.js
+# From PATH, for the same reason as the API unit — see the comment there.
+ExecStart=/usr/bin/env node bot/index.js
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production

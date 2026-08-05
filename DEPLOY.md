@@ -361,15 +361,31 @@ using NODE_MODULE_VERSION 127. This version of Node.js requires NODE_MODULE_VERS
 ```
 
 Sunucuda birden fazla Node var: `npm install` biriyle derlemiş, systemd
-(`ExecStart=/usr/bin/node`) başkasıyla çalıştırıyor. `setup.sh` mevcut Node 18+
-ise kurulumu atladığı için bu ikilik fark edilmeden kalabiliyor.
-(127 = Node 22, 115 = Node 20.) systemd'nin kullandığı Node ile yeniden derle:
+başkasıyla çalıştırıyor. `setup.sh` mevcut Node 18+ ise kendi kurulumunu
+atladığı için bu ikilik fark edilmeden kalabiliyor. (127 = Node 22, 115 = Node
+20.) Önce hangi ikilinin ne olduğuna bak:
 
 ```bash
-which -a node npm && /usr/bin/node -v
-cd /opt/2t1auth
-sudo rm -rf node_modules
-sudo -u 2t1auth /usr/bin/npm install --omit=dev
-/usr/bin/node -e "require('/opt/2t1auth/node_modules/better-sqlite3'); console.log('ok')"
-sudo systemctl restart 2t1auth
+which -a node npm
+/usr/bin/node -p "process.versions.modules"
+/usr/local/bin/node -p "process.versions.modules"   # varsa
 ```
+
+Modülün hangisi için derlendiğini şöyle bulursun — hangisi `OK` yazarsa o:
+
+```bash
+sudo -u 2t1auth /usr/bin/node       -e "require('/opt/2t1auth/node_modules/better-sqlite3');console.log('OK')"
+sudo -u 2t1auth /usr/local/bin/node -e "require('/opt/2t1auth/node_modules/better-sqlite3');console.log('OK')"
+```
+
+Servisi o Node'a geçir — modülü yeniden derlemekten daha sağlam, çünkü `npm`
+zaten `#!/usr/bin/env node` ile PATH'teki ilk Node'u kullanıyor:
+
+```bash
+sudo sed -i 's|^ExecStart=.*node |ExecStart=/usr/local/bin/node |' /etc/systemd/system/2t1auth.service
+sudo systemctl daemon-reload && sudo systemctl restart 2t1auth
+```
+
+> Depodaki unit dosyaları artık `ExecStart=/usr/bin/env node` kullanıyor, yani
+> npm ile aynı Node'u seçiyor. Bu düzeltme yalnızca eski bir kurulumdan kalan
+> `/etc/systemd/system/2t1auth.service` için gerekli.

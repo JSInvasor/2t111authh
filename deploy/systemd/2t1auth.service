@@ -15,7 +15,11 @@ Type=simple
 User=2t1auth
 Group=2t1auth
 WorkingDirectory=/opt/2t1auth
-ExecStart=/usr/bin/node src/index.js
+# Resolved from PATH rather than pinned to /usr/bin/node, because npm resolves
+# its own `node` the same way. On a host with a second Node (say /usr/local/bin
+# from a manual install) a pinned path builds better-sqlite3 against one ABI and
+# runs it under the other, and the service crash-loops on NODE_MODULE_VERSION.
+ExecStart=/usr/bin/env node src/index.js
 Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
