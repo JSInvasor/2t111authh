@@ -1235,25 +1235,46 @@ h2.section .count {
   gap: 12px;
 }
 .card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --lift: 0px;
   background: var(--wash-sand);
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 20px;
   box-shadow: var(--sh-xs);
   transition:
-    transform 0.22s var(--spring),
+    transform 0.4s var(--ease),
+    background-color 0.2s var(--ease),
     border-color 0.2s var(--ease),
     box-shadow 0.2s var(--ease);
 }
+/* Tilts toward the pointer — adapted from Uiverse.io's 3D card by
+   Smit-Prajapati (MIT). The source swings 30deg, which in a grid throws a card
+   over its neighbours and skews its own text past reading; a few degrees keeps
+   the depth and none of that. app.js feeds --tilt-x/--tilt-y.
+   perspective() is per-element on purpose: a shared perspective on .grid would
+   give every card the same vanishing point, so the ones at the edges would
+   shear instead of tilting. */
 .script-card {
   display: block;
   position: relative;
+  transform-style: preserve-3d;
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y))
+    translateY(var(--lift));
 }
 .script-card:hover {
-  transform: translateY(-3px);
+  --lift: -4px;
+  /* while the pointer is inside, the tilt has to track it rather than lag */
+  transition-duration: 0.12s, 0.2s, 0.2s, 0.2s;
   background: var(--wash-lead);
   border-color: var(--accent-tint-2);
   box-shadow: var(--sh-md);
+}
+/* lifted off the card face so the tilt actually reads as depth */
+.script-card .card-top,
+.script-card .go {
+  transform: translateZ(18px);
 }
 .script-card .go {
   position: absolute;
@@ -1261,12 +1282,11 @@ h2.section .count {
   bottom: 14px;
   color: var(--text-4);
   opacity: 0;
-  transform: translateX(-4px);
   transition: 0.2s var(--ease);
 }
 .script-card:hover .go {
   opacity: 1;
-  transform: none;
+  transform: translateZ(26px);
   color: var(--accent-text);
 }
 @media (hover: none) {

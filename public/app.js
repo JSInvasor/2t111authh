@@ -238,6 +238,32 @@ function execChart(days) {
     </div>`;
 }
 
+/* ===================== card tilt ===================== */
+
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/** Leans a card toward the pointer. CSS owns the look; this only reports where
+ *  the pointer is, as two custom properties. */
+function bindCardTilt(root) {
+  if (REDUCED_MOTION.matches) return;
+  root.querySelectorAll('.script-card').forEach((card) => {
+    card.addEventListener('pointermove', (e) => {
+      // pointer position as -0.5..0.5 of the card, so the centre is neutral
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      // x drives rotateY, y drives rotateX, and the sign flips so the card
+      // leans *towards* the pointer rather than away from it
+      card.style.setProperty('--tilt-y', (x * 14).toFixed(2) + 'deg');
+      card.style.setProperty('--tilt-x', (-y * 14).toFixed(2) + 'deg');
+    });
+    card.addEventListener('pointerleave', () => {
+      card.style.removeProperty('--tilt-x');
+      card.style.removeProperty('--tilt-y');
+    });
+  });
+}
+
 /* ===================== theme ===================== */
 
 const THEME_KEY = '2t1auth.theme';
@@ -446,6 +472,8 @@ async function renderScriptsList() {
     ${scripts.length ? `<div class="grid">${cards}</div>`
       : emptyState('package', 'No scripts yet', 'Create your first script to get a loader and start issuing keys.')}
   `;
+
+  bindCardTilt(view());
 }
 
 /* ===================== script detail ===================== */
