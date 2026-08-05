@@ -348,7 +348,16 @@ async function boot() {
   }
 }
 
+/** Drops the boot cover once we know which screen to show. */
+function hideBoot() {
+  const el = $('#boot');
+  if (!el || el.classList.contains('gone')) return;
+  el.classList.add('gone');
+  setTimeout(() => el.classList.add('hidden'), 260);
+}
+
 function showLogin() {
+  hideBoot();
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
@@ -356,6 +365,7 @@ function showLogin() {
 }
 
 function showApp(me) {
+  hideBoot();
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#whoami').innerHTML = `

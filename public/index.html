@@ -14,6 +14,38 @@
   <body>
     <div class="ambient" aria-hidden="true"></div>
 
+    <!-- ------------------------------------------------------------- boot -->
+    <!-- Covers the gap between first paint and /dashboard/api/me answering,
+         where neither the login nor the dashboard can be shown yet. -->
+    <div id="boot" class="boot">
+      <svg class="pl" viewBox="0 0 240 240" role="img" aria-label="Loading">
+        <circle
+          class="pl__ring pl__ring--a"
+          cx="120" cy="120" r="105"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 660" stroke-dashoffset="-330"
+        />
+        <circle
+          class="pl__ring pl__ring--b"
+          cx="120" cy="120" r="35"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 220" stroke-dashoffset="-110"
+        />
+        <circle
+          class="pl__ring pl__ring--c"
+          cx="85" cy="120" r="70"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 440"
+        />
+        <circle
+          class="pl__ring pl__ring--d"
+          cx="155" cy="120" r="70"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 440"
+        />
+      </svg>
+    </div>
+
     <!-- ------------------------------------------------------------ login -->
     <div id="login" class="login-screen hidden">
       <div class="login-card">
