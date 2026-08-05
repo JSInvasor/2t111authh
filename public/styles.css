@@ -618,6 +618,53 @@ select {
   flex-direction: column;
   gap: 6px;
 }
+/* the floating label rises out of the field, so the row has to reserve the
+   space it lands in */
+.login-form .field {
+  padding-top: 22px;
+}
+
+/* Floating label from Uiverse.io by liyaxu123 (MIT). The source pairs it with
+   a borderless underline input; the box and its leading icon are kept here so
+   the login fields still match every other input in the panel, and only the
+   label mechanic is taken. Each letter is its own span so they can be
+   staggered. */
+.float-label {
+  position: absolute;
+  left: 38px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+.float-label span {
+  display: inline-block;
+  min-width: 3px;
+  /* the overshoot is what gives each letter its little hop */
+  transition:
+    transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    color 0.2s var(--ease);
+}
+.float-label span:nth-child(1) { transition-delay: 0ms; }
+.float-label span:nth-child(2) { transition-delay: 35ms; }
+.float-label span:nth-child(3) { transition-delay: 70ms; }
+.float-label span:nth-child(4) { transition-delay: 105ms; }
+.float-label span:nth-child(5) { transition-delay: 140ms; }
+.float-label span:nth-child(6) { transition-delay: 175ms; }
+.float-label span:nth-child(7) { transition-delay: 210ms; }
+.float-label span:nth-child(8) { transition-delay: 245ms; }
+/* :placeholder-shown rather than the source's :valid — :valid only stands in
+   for "has content" while the field is required, and would pin the label up
+   on an empty optional field */
+.input-wrap input:focus + .float-label span,
+.input-wrap input:not(:placeholder-shown) + .float-label span {
+  transform: translateY(-31px);
+  color: var(--text-2);
+}
 .input-wrap {
   position: relative;
   display: flex;
@@ -794,12 +841,6 @@ select {
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-.login-form label {
-  font-size: 12px;
-  font-weight: 570;
-  color: var(--text-2);
-  margin: 0;
 }
 .login-form input {
   padding-top: 10px;
