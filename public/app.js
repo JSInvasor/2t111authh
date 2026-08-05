@@ -160,6 +160,17 @@ function statCard(num, label, ico, cls = '') {
   </div>`;
 }
 
+/* Checkbox row. The box is adapted from Uiverse.io "checkbox-46" by
+   vishnupprajapat (MIT) — the tick strokes itself in and a ring pulses out. */
+const CHECK_SVG = '<svg viewBox="0 0 12 10" aria-hidden="true"><polyline points="1.5 6 4.5 9 10.5 1"/></svg>';
+
+function checkRow(id, title, desc, checked, { cls = '', attrs = '' } = {}) {
+  return `<div class="check ${cls}">
+    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} ${attrs} />
+    <label for="${id}"><span class="cbx">${CHECK_SVG}</span><span><b>${esc(title)}</b>${esc(desc)}</span></label>
+  </div>`;
+}
+
 function emptyState(ico, title, text) {
   return `<div class="empty">
     <div class="empty-ico">${icon(ico)}</div>
@@ -531,18 +542,9 @@ async function renderScriptDetail(id) {
           <div class="form-grid">
             <div><label for="setName">Name</label><input id="setName" value="${esc(script.name)}" /></div>
             <div><label for="setVersion">Version</label><input id="setVersion" value="${esc(script.version)}" /></div>
-            <div class="full check">
-              <input type="checkbox" id="setHwidLock" ${script.hwid_lock ? 'checked' : ''} />
-              <label for="setHwidLock"><b>HWID lock</b>Bind each key to the first device it runs on.</label>
-            </div>
-            <div class="full check">
-              <input type="checkbox" id="setObf" ${script.obfuscate ? 'checked' : ''} />
-              <label for="setObf"><b>Obfuscate &amp; encrypt</b>Re-scramble and encrypt the source on every delivery.</label>
-            </div>
-            <div class="full check">
-              <input type="checkbox" id="setEnabled" ${script.enabled ? 'checked' : ''} />
-              <label for="setEnabled"><b>Enabled</b>Uncheck for maintenance mode — every auth request is rejected.</label>
-            </div>
+            ${checkRow('setHwidLock', 'HWID lock', 'Bind each key to the first device it runs on.', script.hwid_lock, { cls: 'full' })}
+            ${checkRow('setObf', 'Obfuscate & encrypt', 'Re-scramble and encrypt the source on every delivery.', script.obfuscate, { cls: 'full' })}
+            ${checkRow('setEnabled', 'Enabled', 'Uncheck for maintenance mode — every auth request is rejected.', script.enabled, { cls: 'full' })}
             <div class="full">
               <label for="setSource">Protected script source (Lua)</label>
               <textarea id="setSource" rows="12" spellcheck="false"></textarea>
@@ -664,10 +666,8 @@ function openNewScriptModal() {
        <div><label for="nsName">Name</label><input id="nsName" placeholder="My Hub" /></div>
        <div><label for="nsVersion">Version</label><input id="nsVersion" value="1.0.0" /></div>
      </div>
-     <div class="check"><input type="checkbox" id="nsHwid" checked />
-       <label for="nsHwid"><b>HWID lock</b>Bind each key to one device.</label></div>
-     <div class="check"><input type="checkbox" id="nsObf" checked />
-       <label for="nsObf"><b>Obfuscate &amp; encrypt</b>Protect the source on every delivery.</label></div>
+     ${checkRow('nsHwid', 'HWID lock', 'Bind each key to one device.', true)}
+     ${checkRow('nsObf', 'Obfuscate & encrypt', 'Protect the source on every delivery.', true)}
      <div><label for="nsSource">Script source (Lua, optional)</label>
        <textarea id="nsSource" rows="6" spellcheck="false" placeholder='print("hello")'></textarea></div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
@@ -846,10 +846,9 @@ async function renderResellerDetail(id) {
     <div class="panel">
       <div class="panel-head"><h2>${icon('settings')} Account</h2></div>
       <div class="panel-body">
-        <div class="check">
-          <input type="checkbox" id="resEnabled" ${reseller.enabled ? 'checked' : ''} data-action="toggle-enabled" data-id="${id}" />
-          <label for="resEnabled"><b>Enabled</b>Allow this account to sign in.</label>
-        </div>
+        ${checkRow('resEnabled', 'Enabled', 'Allow this account to sign in.', reseller.enabled, {
+          attrs: `data-action="toggle-enabled" data-id="${id}"`,
+        })}
         <div class="form-grid" style="margin-top:14px">
           <div><label for="resPass">Reset password</label><input id="resPass" type="password" placeholder="new password" /></div>
           <div style="display:flex;align-items:flex-end">
