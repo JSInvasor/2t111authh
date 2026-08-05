@@ -119,6 +119,12 @@ const ICONS = {
     '<path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/>',
   package:
     '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  folder:
+    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'folder-open':
+    '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
+  'file-code':
+    '<path d="M10 12.5 8 15l2 2.5"/><path d="m14 12.5 2 2.5-2 2.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/>',
   'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   hash: '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
   tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
@@ -361,6 +367,7 @@ function showLogin() {
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
+  invalidateNavTree();
   closeNav();
 }
 
@@ -380,12 +387,76 @@ function showApp(me) {
   } else {
     nav.innerHTML =
       `<a href="#/" class="nav-item" data-nav="dashboard">${icon('layout-dashboard')} Dashboard</a>` +
+      navTree() +
       `<a href="#/resellers" class="nav-item" data-nav="resellers">${icon('users')} Resellers</a>`;
   }
 }
 
 function setActiveNav(name) {
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.nav === name));
+}
+
+/* ===================== sidebar script tree ===================== */
+
+/* Jumping between two scripts used to mean going back to the overview and
+   picking the next card; the tree makes it one click.
+   Adapted from Uiverse.io "file tree" by ashif_6672 (MIT). The branch opens
+   by animating a grid row from 0fr to 1fr, so the transition needs no guess
+   at the content height, and the folder icon swaps for its open variant. */
+function navTree() {
+  return `<div class="tree-item" id="navTree">
+    <input type="checkbox" class="tree-toggle" id="navTreeToggle" checked />
+    <label class="nav-item tree-label" for="navTreeToggle">
+      ${icon('chevron-right', 'tree-caret')}
+      ${icon('folder')}${icon('folder-open')}
+      <span class="tree-title">Scripts</span>
+      <span class="tree-count" id="navTreeCount"></span>
+    </label>
+    <div class="tree-children-wrapper">
+      <div class="tree-children"><ul id="navTreeList"></ul></div>
+    </div>
+  </div>`;
+}
+
+let navScripts = null;   // null until the first list lands
+let navScriptId = null;  // the script the tree should mark as selected
+
+/** Repaints the tree. Callers that already hold the script list pass it in;
+ *  everyone else gets the cached copy, fetched once on first need. */
+async function syncNavTree(scripts) {
+  if (!$('#navTree')) return; // resellers have no tree
+  if (scripts) navScripts = scripts;
+  else if (!navScripts) {
+    try { navScripts = (await api('/api/v1/scripts')).scripts; } catch { return; }
+  }
+  const list = $('#navTreeList');
+  if (!list) return; // logged out while the fetch was in flight
+  list.innerHTML = navScripts.length
+    ? navScripts.map((s) => `<li class="tree-item">
+        <a class="tree-file" href="#/s/${esc(s.id)}" data-script="${esc(s.id)}" title="${esc(s.name)}">
+          ${icon('file-code')}<span class="tree-name">${esc(s.name)}</span>
+        </a>
+      </li>`).join('')
+    : `<li class="tree-item"><span class="tree-file tree-none">${icon('file-code')}<span class="tree-name">No scripts yet</span></span></li>`;
+  $('#navTreeCount').textContent = navScripts.length || '';
+  markNavScript(navScriptId);
+}
+
+/** Highlights one script in the tree (or none), revealing it if collapsed. */
+function markNavScript(id) {
+  navScriptId = id;
+  const tree = $('#navTree');
+  if (!tree) return;
+  tree.querySelectorAll('.tree-file').forEach((el) => el.classList.toggle('is-selected', !!id && el.dataset.script === id));
+  if (id) $('#navTreeToggle').checked = true;
+}
+
+/** Drops the cached list so the next paint refetches — names, and the list
+ *  itself, change from places that never see the full collection. Also how
+ *  one account's scripts stop being held in memory once it logs out. */
+function invalidateNavTree() {
+  navScripts = null;
+  navScriptId = null;
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -435,6 +506,7 @@ function route() {
 
 async function renderScriptsList() {
   setActiveNav('dashboard');
+  markNavScript(null);
   state.refresh = renderScriptsList;
   view().innerHTML = skeleton();
   let scripts, ov;
@@ -444,6 +516,8 @@ async function renderScriptsList() {
       api('/api/v1/overview'),
     ]);
   } catch (e) { view().innerHTML = errorState(e.message); return; }
+
+  syncNavTree(scripts); // the list is already in hand — no second request
 
   const t = ov.totals;
   const overviewRow = `
@@ -492,7 +566,9 @@ let currentKeys = [];
 let currentScript = null;
 
 async function renderScriptDetail(id) {
-  setActiveNav('dashboard');
+  setActiveNav('script'); // the tree marks where we are; no flat item matches
+  markNavScript(id);
+  syncNavTree();
   state.refresh = () => renderScriptDetail(id);
   view().innerHTML = skeleton();
 
@@ -628,6 +704,7 @@ async function renderScriptDetail(id) {
         },
       });
       toast('Settings saved', 'ok');
+      invalidateNavTree(); // the name may have changed
       renderScriptDetail(script.id);
     } catch (err) { toast(err.message, 'err'); }
   });
@@ -729,6 +806,7 @@ async function createScript() {
     });
     closeModal();
     toast('Script created', 'ok');
+    invalidateNavTree();
     location.hash = `#/s/${script.id}`;
   } catch (err) { toast(err.message, 'err'); }
 }
@@ -1064,7 +1142,7 @@ document.addEventListener('click', (e) => {
     case 'delete-script':
       if (currentScript && confirm(`Delete "${currentScript.name}" and ALL its keys? This cannot be undone.`)) {
         api(`/api/v1/scripts/${currentScript.id}`, { method: 'DELETE' })
-          .then(() => { toast('Script deleted', 'ok'); location.hash = '#/'; })
+          .then(() => { toast('Script deleted', 'ok'); invalidateNavTree(); location.hash = '#/'; })
           .catch((err) => toast(err.message, 'err'));
       }
       break;

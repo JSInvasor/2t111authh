@@ -976,6 +976,9 @@ select {
   flex-direction: column;
   gap: 1px;
   flex: 1;
+  /* a long script tree scrolls here rather than pushing the footer off-screen */
+  min-height: 0;
+  overflow-y: auto;
 }
 .nav-item {
   position: relative;
@@ -1011,6 +1014,162 @@ select {
 }
 .nav-item.active svg.ico {
   color: var(--accent-text);
+}
+
+/* ------------------------------------------------- sidebar script tree
+   Adapted from Uiverse.io "file tree" by ashif_6672 (MIT). The branch opens
+   by animating a grid row from 0fr to 1fr — unlike max-height that needs no
+   guess at how tall the list is — and the folder swaps for its open glyph.
+   The source hides the checkbox with display:none, which takes it out of the
+   tab order; here it is only visually hidden, so the branch still opens from
+   the keyboard. */
+.tree-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.tree-label {
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.tree-title {
+  flex: 1;
+}
+.tree-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-4);
+}
+.tree-label svg.ico.tree-caret {
+  width: 13px;
+  height: 13px;
+  margin-left: -2px;
+  transition:
+    transform 0.3s var(--ease),
+    color 0.16s var(--ease);
+}
+.tree-toggle:checked ~ .tree-label .tree-caret {
+  transform: rotate(90deg);
+}
+.tree-label .ico-folder-open {
+  display: none;
+}
+.tree-toggle:checked ~ .tree-label .ico-folder {
+  display: none;
+}
+.tree-toggle:checked ~ .tree-label .ico-folder-open {
+  display: block;
+}
+.tree-toggle:focus-visible ~ .tree-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tree-children-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  /* clipping alone leaves the links tabbable while the branch is shut;
+     transitioned visibility holds off until the row has finished closing,
+     then takes them off the tab order, and restores them instantly on open */
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.32s var(--ease),
+    visibility 0.32s var(--ease);
+}
+.tree-toggle:checked ~ .tree-children-wrapper {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.tree-children {
+  overflow: hidden;
+}
+.tree-children ul {
+  position: relative;
+  list-style: none;
+  margin: 2px 0 6px 21px;
+  padding: 0 0 0 11px;
+}
+/* the guide line, stopped level with the last row's connector instead of
+   dangling past it (rows are a fixed 29px + 1px gap, so the offset holds) */
+.tree-children ul::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 14.5px;
+  width: 1px;
+  background: var(--line);
+}
+.tree-children li {
+  position: relative;
+  margin-top: 1px;
+}
+.tree-children li::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--line);
+}
+.tree-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 29px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 12.8px;
+  font-weight: 520;
+  transition:
+    color 0.16s var(--ease),
+    background-color 0.16s var(--ease);
+}
+.tree-file svg.ico {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-4);
+  transition: color 0.16s var(--ease);
+}
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-file:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.tree-file:hover svg.ico {
+  color: var(--text-2);
+}
+.tree-file.is-selected {
+  color: var(--accent-text);
+  font-weight: 620;
+  background: var(--accent-tint);
+}
+.tree-file.is-selected svg.ico {
+  color: var(--accent-text);
+}
+.tree-none,
+.tree-none:hover {
+  color: var(--text-4);
+  background: none;
+  cursor: default;
+}
+.tree-none:hover svg.ico {
+  color: var(--text-4);
 }
 
 .sidebar-foot {
