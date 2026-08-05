@@ -785,9 +785,51 @@ select {
 .aside-art {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f2f2f2 38%, #b4b4b4 100%);
+  /* dimmed from what it used to be, because the beam below is what brings it
+     back up — unlit dots are meant to sit back */
+  background: linear-gradient(180deg, #9c9c9c 0%, #8b8b8b 38%, #5c5c5c 100%);
   -webkit-mask: url('login-art.svg') center bottom / cover no-repeat;
   mask: url('login-art.svg') center bottom / cover no-repeat;
+}
+/* A light drifting over the globe, lifting the dots it passes.
+   The reveal mechanic is from Uiverse.io by Cobp (MIT), where a torch beam
+   uncovers a second, brighter copy of the scene beneath a dark one. Here the
+   scene is the globe that was already in this panel, so there is one artwork
+   rather than two, and the pass is monochrome like the rest of the palette.
+   Cobp animates clip-path over the whole scene, which repaints every frame;
+   this is a soft-edged blob moved with transform and cut into dots by the
+   parent's own mask, so nothing repaints as it travels. Sized in px because
+   the panel is a fixed 439x573 wherever it is shown at all. */
+.aside-art::after {
+  content: '';
+  position: absolute;
+  left: -170px;
+  top: -170px;
+  width: 340px;
+  height: 340px;
+  background: #f4f4f4;
+  -webkit-mask: radial-gradient(closest-side, #000 24%, rgba(0, 0, 0, 0.55) 56%, transparent 100%);
+  mask: radial-gradient(closest-side, #000 24%, rgba(0, 0, 0, 0.55) 56%, transparent 100%);
+  animation: aside-sweep 26s ease-in-out infinite;
+}
+/* starts and ends clear of the panel, so the loop point is off-screen */
+@keyframes aside-sweep {
+  0% { transform: translate(-210px, 150px); }
+  22% { transform: translate(140px, 110px); }
+  42% { transform: translate(300px, 300px); }
+  60% { transform: translate(200px, 470px); }
+  78% { transform: translate(380px, 390px); }
+  100% { transform: translate(650px, 250px); }
+}
+/* the global clamp would park the beam at its last keyframe — off-panel —
+   and leave the globe dimmed for good, so hand the brightness back instead */
+@media (prefers-reduced-motion: reduce) {
+  .aside-art {
+    background: linear-gradient(180deg, #ffffff 0%, #f2f2f2 38%, #b4b4b4 100%);
+  }
+  .aside-art::after {
+    display: none;
+  }
 }
 .aside-copy {
   position: relative;
