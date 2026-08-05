@@ -99,10 +99,6 @@
   --logo-fill: linear-gradient(155deg, #6e6e6e, #2e2e2e 58%, #1a1a1a);
 
   /* login backdrop */
-  --login-bg: #ededed;
-  --login-grid: rgba(23, 23, 23, 0.07);
-  --login-glow: rgba(247, 247, 247, 0.93);
-  --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
 
   --r-xs: 10px;
@@ -167,11 +163,6 @@
   --chart-track: rgba(255, 255, 255, 0.08);
 
   --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
-
-  --login-bg: #0a0a0a;
-  --login-grid: rgba(255, 255, 255, 0.06);
-  --login-glow: rgba(13, 13, 13, 0.92);
-  --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -226,11 +217,6 @@
     --chart-track: rgba(255, 255, 255, 0.08);
 
     --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
-
-    --login-bg: #0a0a0a;
-    --login-grid: rgba(255, 255, 255, 0.06);
-    --login-glow: rgba(13, 13, 13, 0.92);
-    --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -707,19 +693,233 @@ select {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--login-bg);
+  /* the shelf below is a dark room in either theme, same as the showcase
+     panel, so this is a literal rather than a themed token */
+  background: #111;
   overflow: hidden;
 }
-/* the grid itself */
-.login-screen::before {
-  content: '';
-  position: absolute;
+
+/* ------------------------------------------------------- login: the shelf
+   From Uiverse.io by Cobp (MIT). The whole scene — shelves, book spines,
+   their shading — is stacked linear-gradients on a 300x150 tile, with no
+   image involved; a torch travels over it and reveals the same scene in
+   colour, and at one point something blinks back.
+
+   The source clips the coloured copy with an animated clip-path over a
+   full-viewport element. Measured at 1440x900 that runs at a median 33.4ms
+   per frame (p95 66.7ms), because the 25-gradient stack is re-rasterised
+   every frame. Here the torch is instead a round 300px window moved with
+   transform, and the coloured scene inside it is moved by exactly the
+   opposite amount so it holds still while the window travels over it. Both
+   are transforms, so the scene is painted once and the sweep composites.
+   Every keyframe below therefore comes in a matched pair, and the two must
+   keep identical offsets or the scene will drift inside the window. */
+.shelf {
+  position: fixed;
   inset: 0;
+  background-color: #111;
   background-image:
-    linear-gradient(to right, var(--login-grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--login-grid) 1px, transparent 1px);
-  background-size: 44px 44px;
-  background-position: 0 0;
+    linear-gradient(to top, #222 5%, #111 6%, #111 7%, transparent 7%),
+    linear-gradient(to bottom, #111 30%, transparent 80%),
+    linear-gradient(to right, #222, #2e2e2e 5%, transparent 5%),
+    linear-gradient(to right, transparent 6%, #222 6%, #2e2e2e 9%, transparent 9%),
+    linear-gradient(to right, transparent 27%, #222 27%, #2e2e2e 34%, transparent 34%),
+    linear-gradient(to right, transparent 51%, #222 51%, #2e2e2e 57%, transparent 57%),
+    linear-gradient(to bottom, #111 35%, transparent 35%),
+    linear-gradient(to right, transparent 42%, #222 42%, #2e2e2e 44%, transparent 44%),
+    linear-gradient(to right, transparent 45%, #222 45%, #2e2e2e 47%, transparent 47%),
+    linear-gradient(to right, transparent 48%, #222 48%, #2e2e2e 50%, transparent 50%),
+    linear-gradient(to right, transparent 87%, #222 87%, #2e2e2e 91%, transparent 91%),
+    linear-gradient(to bottom, #111 37.5%, transparent 37.5%),
+    linear-gradient(to right, transparent 14%, #222 14%, #2e2e2e 20%, transparent 20%),
+    linear-gradient(to bottom, #111 40%, transparent 40%),
+    linear-gradient(to right, transparent 10%, #222 10%, #2e2e2e 13%, transparent 13%),
+    linear-gradient(to right, transparent 21%, #222 21%, #1a1a1a 25%, transparent 25%),
+    linear-gradient(to right, transparent 58%, #222 58%, #2e2e2e 64%, transparent 64%),
+    linear-gradient(to right, transparent 92%, #222 92%, #2e2e2e 95%, transparent 95%),
+    linear-gradient(to bottom, #111 48%, transparent 48%),
+    linear-gradient(to right, transparent 96%, #222 96%, #1a1a1a 99%, transparent 99%),
+    linear-gradient(
+      to bottom,
+      transparent 68.5%,
+      transparent 76%,
+      #111 76%,
+      #111 77.5%,
+      transparent 77.5%,
+      transparent 86%,
+      #111 86%,
+      #111 87.5%,
+      transparent 87.5%
+    ),
+    linear-gradient(to right, transparent 35%, #222 35%, #2e2e2e 41%, transparent 41%),
+    linear-gradient(to bottom, #111 68%, transparent 68%),
+    linear-gradient(
+      to right,
+      transparent 78%,
+      #333 78%,
+      #333 80%,
+      transparent 80%,
+      transparent 82%,
+      #333 82%,
+      #333 83%,
+      transparent 83%
+    ),
+    linear-gradient(to right, transparent 66%, #222 66%, #2e2e2e 85%, transparent 85%);
+  background-size: 300px 150px;
+  background-position: center bottom;
+}
+
+/* The round window. Its centre sits on the viewport origin, so the translate
+   in the keyframes reads straight off as "put the torch here". */
+.shelf-lit {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  border-radius: 50%;
+  overflow: hidden;
+  transform: translate(-25vw, 10vh);
+  animation: torch 20s ease infinite;
+}
+/* the lit scene, pinned back onto the viewport by the opposite translate */
+.shelf-lit i {
+  position: absolute;
+  left: 150px;
+  top: 150px;
+  width: 100vw;
+  height: 100vh;
+  transform: translate(25vw, -10vh);
+  animation: torch-hold 20s ease infinite;
+  background-color: #111;
+  background-image:
+    linear-gradient(to top, #d2b48c 5%, #111 6%, #111 7%, transparent 7%),
+    linear-gradient(to bottom, #111 30%, transparent 30%),
+    linear-gradient(to right, #b22222, #871a1a 5%, transparent 5%),
+    linear-gradient(to right, transparent 6%, #ff6347 6%, #ff3814 9%, transparent 9%),
+    linear-gradient(to right, transparent 27%, #556b2f 27%, #39481f 34%, transparent 34%),
+    linear-gradient(to right, transparent 51%, #fa8072 51%, #f85441 57%, transparent 57%),
+    linear-gradient(to bottom, #111 35%, transparent 35%),
+    linear-gradient(to right, transparent 42%, #008080 42%, #004d4d 44%, transparent 44%),
+    linear-gradient(to right, transparent 45%, #008080 45%, #004d4d 47%, transparent 47%),
+    linear-gradient(to right, transparent 48%, #008080 48%, #004d4d 50%, transparent 50%),
+    linear-gradient(to right, transparent 87%, #789 87%, #4f5d6a 91%, transparent 91%),
+    linear-gradient(to bottom, #111 37.5%, transparent 37.5%),
+    linear-gradient(to right, transparent 14%, #bdb76b 14%, #989244 20%, transparent 20%),
+    linear-gradient(to bottom, #111 40%, transparent 40%),
+    linear-gradient(to right, transparent 10%, #808000 10%, #4d4d00 13%, transparent 13%),
+    linear-gradient(to right, transparent 21%, #8b4513 21%, #5e2f0d 25%, transparent 25%),
+    linear-gradient(to right, transparent 58%, #8b4513 58%, #5e2f0d 64%, transparent 64%),
+    linear-gradient(to right, transparent 92%, #2f4f4f 92%, #1c2f2f 95%, transparent 95%),
+    linear-gradient(to bottom, #111 48%, transparent 48%),
+    linear-gradient(to right, transparent 96%, #2f4f4f 96%, #1c2f2f 99%, transparent 99%),
+    linear-gradient(
+      to bottom,
+      transparent 68.5%,
+      transparent 76%,
+      #111 76%,
+      #111 77.5%,
+      transparent 77.5%,
+      transparent 86%,
+      #111 86%,
+      #111 87.5%,
+      transparent 87.5%
+    ),
+    linear-gradient(to right, transparent 35%, #cd5c5c 35%, #bc3a3a 41%, transparent 41%),
+    linear-gradient(to bottom, #111 68%, transparent 68%),
+    linear-gradient(
+      to right,
+      transparent 78%,
+      #bc8f8f 78%,
+      #bc8f8f 80%,
+      transparent 80%,
+      transparent 82%,
+      #bc8f8f 82%,
+      #bc8f8f 83%,
+      transparent 83%
+    ),
+    linear-gradient(to right, transparent 66%, #a52a2a 66%, #7c2020 85%, transparent 85%);
+  background-size: 300px 150px;
+  background-position: center bottom;
+}
+
+/* whatever is on the shelf when the torch swings down to it */
+.shelf-eyes {
+  position: fixed;
+  left: calc(50% + 59px);
+  bottom: 100px;
+  width: 25px;
+  height: 10px;
+  opacity: 0;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(circle, #fff 50%, transparent 50%),
+    radial-gradient(circle, #fff 50%, transparent 50%);
+  background-size: 10px 10px;
+  background-position:
+    left center,
+    right center;
+  animation: eyes 20s infinite;
+}
+
+@keyframes torch {
+  0% { transform: translate(-25vw, 10vh); opacity: 1; }
+  38% { transform: translate(60vw, 20vh); opacity: 1; }
+  39% { transform: translate(60vw, 86vh); opacity: 1; }
+  40% { transform: translate(60vw, 86vh); opacity: 0; }
+  41% { transform: translate(60vw, 86vh); opacity: 1; }
+  42% { transform: translate(60vw, 86vh); opacity: 0; }
+  54% { transform: translate(60vw, 86vh); opacity: 0; }
+  55% { transform: translate(60vw, 86vh); opacity: 1; }
+  59% { transform: translate(60vw, 86vh); opacity: 1; }
+  64% { transform: translate(45vw, 78vh); opacity: 1; }
+  68% { transform: translate(85vw, 89vh); opacity: 1; }
+  72% { transform: translate(60vw, 86vh); opacity: 1; }
+  74% { transform: translate(60vw, 86vh); opacity: 1; }
+  100% { transform: translate(150vw, 50vh); opacity: 1; }
+}
+/* the exact negation of the above, offset for offset */
+@keyframes torch-hold {
+  0% { transform: translate(25vw, -10vh); }
+  38% { transform: translate(-60vw, -20vh); }
+  39% { transform: translate(-60vw, -86vh); }
+  40% { transform: translate(-60vw, -86vh); }
+  41% { transform: translate(-60vw, -86vh); }
+  42% { transform: translate(-60vw, -86vh); }
+  54% { transform: translate(-60vw, -86vh); }
+  55% { transform: translate(-60vw, -86vh); }
+  59% { transform: translate(-60vw, -86vh); }
+  64% { transform: translate(-45vw, -78vh); }
+  68% { transform: translate(-85vw, -89vh); }
+  72% { transform: translate(-60vw, -86vh); }
+  74% { transform: translate(-60vw, -86vh); }
+  100% { transform: translate(-150vw, -50vh); }
+}
+@keyframes eyes {
+  0%,
+  38% { opacity: 0; }
+  39% { opacity: 1; transform: scaleY(1); }
+  40% { opacity: 1; transform: scaleY(0); }
+  41% {
+    opacity: 1;
+    transform: scaleY(1);
+    background-image:
+      radial-gradient(circle, #ff0000 50%, transparent 50%),
+      radial-gradient(circle, #ff0000 50%, transparent 50%);
+    filter: drop-shadow(0 0 4px #ff8686);
+  }
+  42%,
+  100% { opacity: 0; }
+}
+
+/* the global clamp would freeze the torch mid-sweep and strobe the blink;
+   drop both instead and leave the shelf dark and still */
+@media (prefers-reduced-motion: reduce) {
+  .shelf-lit,
+  .shelf-eyes {
+    display: none;
+  }
 }
 
 .login-card {
@@ -759,7 +959,8 @@ select {
     linear-gradient(165deg, #2b2b2b 0%, #1a1a1a 45%, #0d0d0d 100%);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.08);
 }
-/* the same lattice as the page backdrop, so the two read as one system */
+/* a faint lattice over the panel, so it reads as a surface rather than a
+   flat block of black next to the shelf behind the card */
 .login-aside::before {
   content: '';
   position: absolute;
@@ -2225,14 +2426,26 @@ tr:hover .row-actions,
    and 440 are the circumferences of r=105, r=35 and r=70, on a 240 box centred
    at 120,120 — see index.html. Strokes read from the tokens so it works on
    both themes. */
+/* matches the shelf, not the theme: the boot cover fades straight into the
+   login screen, and a light cover over a dark room pops on the handoff */
 .boot {
   position: fixed;
   inset: 0;
   z-index: 150;
   display: grid;
   place-items: center;
-  background: var(--login-bg);
+  background: #111;
   transition: opacity 0.25s var(--ease);
+}
+.boot .pl__ring--a,
+.boot .pl__ring--d {
+  stroke: #ededed;
+}
+.boot .pl__ring--b {
+  stroke: #8f8f8f;
+}
+.boot .pl__ring--c {
+  stroke: #6a6a6a;
 }
 .boot.gone {
   opacity: 0;

@@ -48,6 +48,14 @@
 
     <!-- ------------------------------------------------------------ login -->
     <div id="login" class="login-screen hidden">
+      <!-- The dark shelf, and the torch that lights it. Two copies of the same
+           scene: .shelf is the unlit one, .shelf-lit i the coloured one, and
+           the torch is a round window that travels over the top of it. -->
+      <div class="shelf" aria-hidden="true">
+        <div class="shelf-lit"><i></i></div>
+        <span class="shelf-eyes"></span>
+      </div>
+
       <div class="login-card">
         <div class="login-pane">
         <div class="login-brand">
