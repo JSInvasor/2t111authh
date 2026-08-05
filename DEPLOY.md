@@ -14,96 +14,204 @@ Tarayıcı / Executor ──HTTPS──▶ Cloudflare (edge, DDoS, cache)
 - Domain: **2t1.online** (Cloudflare proxy AÇIK — turuncu bulut)
 - TLS: **Cloudflare Origin Certificate** + SSL modu **Full (strict)**
 - App yalnızca `127.0.0.1:3000` dinler; internete açık olan tek şey nginx (80/443).
+- VPS'e SSH kullanıcısı: **`dbg`** (sudo yetkili). Servis, ayrı ve giriş yapamayan
+  bir `2t1auth` sistem kullanıcısı olarak çalışır — `dbg` değil.
 
-> Tüm `sudo ...` komutları **VPS'te** çalışır. Windows'ta çalışacak birkaç komut ayrıca belirtildi.
+> `sudo ...` ile başlayan her komut **VPS'te**, `dbg` olarak çalışır.
+> Windows'ta çalışacak olanlar ayrıca belirtildi.
 
 ---
 
-## Adım 0 — Cloudflare DNS
+## Adım 0 — Başlamadan önce
 
-Cloudflare paneli → **2t1.online** → **DNS → Records**. Şu iki kaydı ekle/güncelle
-(varsa eski/yanlış A kayıtlarını sil):
+**0a. `dbg` sudo yetkili mi?**
+
+```bash
+ssh dbg@5.189.165.10
+sudo -v && echo "sudo tamam"
+```
+
+Hata verirse, root olarak bir kez: `usermod -aG sudo dbg`
+
+**0b. SSH portun 22 değilse önce onu firewall'a ekle.**
+
+Adım 4'teki script `ufw`'yi açar ve yalnızca OpenSSH (22) + nginx'e izin verir.
+Özel bir port kullanıyorsan **script'ten önce** şunu çalıştır, yoksa bağlantın kopar:
+
+```bash
+ss -tlnp | grep sshd            # hangi porttan dinliyor
+sudo ufw allow <PORTUN>/tcp     # örn. sudo ufw allow 2222/tcp
+```
+
+---
+
+## Adım 1 — Eski kurulumu temizle
+
+> **Bu adım veri siler.** `/opt/2t1auth/data/2t1auth.db` içindeki her şey —
+> script'ler, key'ler, bayiler, çalıştırma geçmişi — bu tek dosyada. Silersen
+> dağıttığın key'ler çalışmaz olur. Önce yedek al.
+
+**1a. Yedek (eski kurulum varsa):**
+
+```bash
+sudo tar -czf ~/2t1auth-yedek-$(date +%F-%H%M).tar.gz \
+  -C /opt/2t1auth data .env 2>/dev/null \
+  && echo "yedek alındı: ~/2t1auth-yedek-*.tar.gz" \
+  || echo "(eski kurulum yok — atla)"
+```
+
+**1b. Servisleri durdur ve her şeyi kaldır:**
+
+```bash
+sudo systemctl disable --now 2t1auth 2t1auth-bot 2>/dev/null || true
+sudo rm -f /etc/systemd/system/2t1auth.service /etc/systemd/system/2t1auth-bot.service
+sudo systemctl daemon-reload
+sudo rm -f /etc/nginx/sites-enabled/2t1.online /etc/nginx/sites-available/2t1.online
+sudo rm -rf /opt/2t1auth
+rm -f ~/2t1auth.tar.gz
+```
+
+Kontrol — ikisi de boş dönmeli:
+
+```bash
+systemctl list-units --all | grep 2t1auth
+ls /opt/2t1auth 2>/dev/null
+```
+
+> **Veritabanını korumak istiyorsan** `sudo rm -rf /opt/2t1auth` yerine
+> `data/` ve `.env` dışındaki her şeyi sil — böylece Adım 5'i atlayabilirsin:
+>
+> ```bash
+> cd /opt/2t1auth
+> sudo find . -maxdepth 1 -mindepth 1 ! -name data ! -name .env -exec rm -rf {} +
+> ls -a          # sadece . .. data .env kalmalı
+> ```
+
+---
+
+## Adım 2 — Cloudflare DNS + Origin Certificate
+
+**2a. DNS.** Cloudflare paneli → **2t1.online** → **DNS → Records**. Şu iki kaydı
+ekle/güncelle (varsa eski veya yanlış A kayıtlarını sil):
 
 | Type | Name | Content | Proxy |
 |------|------|-----------------|--------------|
 | A | `2t1.online` (`@`) | `5.189.165.10` | Proxied 🟠 |
 | A | `www` | `5.189.165.10` | Proxied 🟠 |
 
-## Adım 1 — Cloudflare Origin Certificate
+**2b. Sertifika.**
 
 1. **SSL/TLS → Origin Server → Create Certificate**
    - Private key type: RSA, Hostnames: `2t1.online, *.2t1.online` → **Create**
-2. Açılan iki metni kaydet:
-   - **Origin Certificate** → `2t1.online.pem`
-   - **Private Key** → `2t1.online.key`
-3. **SSL/TLS → Overview** → şifreleme modunu **Full (strict)** yap.
-4. **SSL/TLS → Edge Certificates** → **Always Use HTTPS: On**.
+2. Açılan iki metni bir yere kopyala — sayfayı kapatınca private key bir daha
+   gösterilmez:
+   - **Origin Certificate** → Adım 5'te `.pem` olarak yapıştıracaksın
+   - **Private Key** → Adım 5'te `.key` olarak yapıştıracaksın
+3. **SSL/TLS → Overview** → şifreleme modu **Full (strict)**
+4. **SSL/TLS → Edge Certificates** → **Always Use HTTPS: On**
 
-Sertifikayı VPS'e koyacağız (Adım 4).
+---
 
-## Adım 2 — Kodu VPS'e gönder
+## Adım 3 — Kodu VPS'e gönder
 
-**Windows'ta (Git Bash)** — proje klasöründen, `node_modules`/`.env`/`data` hariç bir arşiv yapıp gönder:
+> **Önce doğru branch'te olduğundan emin ol.** Arayüz çalışmasının tamamı
+> `claude/kanka-anti-tamper-dev-74egn7` branch'inde; `main` bunun epey gerisinde.
+> Yanlış branch'ten arşiv alırsan VPS'e eski arayüz gider.
+
+**Windows'ta (Git Bash):**
 
 ```bash
 cd "/c/Users/efesa/OneDrive/Masaüstü/2t1auth"
-tar --exclude=node_modules --exclude=data --exclude=.env --exclude=.git -czf /tmp/2t1auth.tar.gz .
-scp /tmp/2t1auth.tar.gz root@5.189.165.10:/root/
+
+git fetch origin
+git checkout claude/kanka-anti-tamper-dev-74egn7
+git pull
+git log --oneline -1          # en üstte son commit'i görmelisin
+
+tar --exclude=node_modules --exclude=data --exclude=.env --exclude=.git \
+    -czf /tmp/2t1auth.tar.gz .
+scp /tmp/2t1auth.tar.gz dbg@5.189.165.10:~/
 ```
 
-**VPS'te** aç:
+> `--exclude=data` şart: depoda eski bir geliştirme veritabanı takipli duruyor
+> ve dışlanmazsa üretim verisinin üstüne biner.
+
+**VPS'te aç:**
 
 ```bash
-mkdir -p /opt/2t1auth
-tar -xzf /root/2t1auth.tar.gz -C /opt/2t1auth
-cd /opt/2t1auth
+sudo mkdir -p /opt/2t1auth
+sudo tar -xzf ~/2t1auth.tar.gz -C /opt/2t1auth
+ls /opt/2t1auth/public/fonts    # 4 adet .woff2 görmelisin — yeni arayüz geldi demektir
 ```
 
-## Adım 3 — Otomatik kurulum (Node + nginx + ufw + systemd)
+---
 
-VPS'te tek script:
+## Adım 4 — Otomatik kurulum
 
 ```bash
 sudo bash /opt/2t1auth/deploy/setup.sh
 ```
 
-Bu; Node 20'yi, nginx'i, ufw'yi kurar, `2t1auth` kullanıcısını oluşturur,
-bağımlılıkları yükler, nginx site'ını ve systemd servisini bağlar, firewall'u açar.
-(`.env`, sertifika ve admin adımları bilerek manueldir — aşağıda.)
+Bu script: Node 20 + nginx + ufw + derleme araçlarını kurar, `2t1auth` servis
+kullanıcısını oluşturur, bağımlılıkları yükler (`npm install --omit=dev`),
+nginx site'ını ve systemd servisini bağlar, firewall'u açar.
 
-## Adım 4 — Sertifika + .env + admin
+Sertifika, `.env` ve admin adımları bilerek manuel — sırada onlar var.
 
-**4a. Cloudflare Origin cert dosyalarını yerleştir:**
+---
+
+## Adım 5 — Sertifika + .env + admin
+
+**5a. Cloudflare Origin cert'ini yerleştir** (Adım 2b'de kopyaladıkların):
 
 ```bash
 sudo mkdir -p /etc/ssl/cloudflare
-sudo nano /etc/ssl/cloudflare/2t1.online.pem   # Origin Certificate'i yapıştır
-sudo nano /etc/ssl/cloudflare/2t1.online.key   # Private Key'i yapıştır
+sudo nano /etc/ssl/cloudflare/2t1.online.pem     # Origin Certificate
+sudo nano /etc/ssl/cloudflare/2t1.online.key     # Private Key
+sudo chown root:root /etc/ssl/cloudflare/2t1.online.*
 sudo chmod 600 /etc/ssl/cloudflare/2t1.online.key
 ```
 
-**4b. Üretim `.env`'i oluştur ve doldur:**
+**5b. İki secret üret** (çıktıları bir yere al, birazdan yapıştıracaksın):
+
+```bash
+echo "ADMIN_API_KEY=$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
+echo "SESSION_SECRET=$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
+```
+
+**5c. `.env`'i oluştur:**
 
 ```bash
 cd /opt/2t1auth
 sudo -u 2t1auth cp deploy/env.production.example .env
-# İki güçlü secret üret ve .env'e yapıştır (ADMIN_API_KEY, SESSION_SECRET):
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 sudo -u 2t1auth nano .env
 ```
 
-`.env` içinde en az şunlar dolu olmalı: `BASE_URL=https://2t1.online`, `HOST=127.0.0.1`,
-`ADMIN_API_KEY`, `SESSION_SECRET`, `DB_PATH=/opt/2t1auth/data/2t1auth.db`.
+Şu satırlar dolu olmalı — gerisi varsayılanlarıyla doğru:
 
-**4c. Dashboard admin hesabı oluştur:**
+```
+PORT=3000
+HOST=127.0.0.1
+BASE_URL=https://2t1.online
+ADMIN_API_KEY=<5b'deki ilk değer>
+SESSION_SECRET=<5b'deki ikinci değer>
+DB_PATH=/opt/2t1auth/data/2t1auth.db
+TRUST_PROXY=1
+```
+
+> `BASE_URL` **https** ile başlamak zorunda. Oturum çerezi `Secure` bayrağını
+> buradan alıyor; `http` yazarsan tarayıcı çerezi tutmaz ve giriş yapılamaz.
+
+**5d. Dashboard admin hesabı:**
 
 ```bash
 cd /opt/2t1auth
-sudo -u 2t1auth npm run create-admin -- admin 'BURAYA_GUCLU_SIFRE'
+sudo -u 2t1auth node scripts/create-admin.js admin 'BURAYA_GUCLU_SIFRE'
 ```
 
-## Adım 5 — Başlat ve doğrula
+---
+
+## Adım 6 — Başlat ve doğrula
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -111,28 +219,39 @@ sudo systemctl restart 2t1auth
 systemctl status 2t1auth --no-pager
 ```
 
-Kontroller:
+Sırayla kontrol et:
 
 ```bash
-curl -s http://127.0.0.1:3000/health          # VPS'te: {"status":"ok",...}
-curl -sI https://2t1.online/dashboard/ | head  # her yerden: 200
+# 1) app ayakta mı (VPS'te)
+curl -s http://127.0.0.1:3000/health
+#    → {"status":"ok","uptime":...}
+
+# 2) nginx + Cloudflare zinciri (her yerden)
+curl -sI https://2t1.online/dashboard/ | head -1
+#    → HTTP/2 200
+
+# 3) yeni arayüz gerçekten gitmiş mi
+curl -s https://2t1.online/dashboard/ | grep -c 'class="shelf"'
+#    → 1
+curl -sI https://2t1.online/dashboard/fonts/quicksand-latin.woff2 | head -1
+#    → HTTP/2 200
 ```
 
-Tarayıcıda **https://2t1.online/dashboard/** → admin/şifre ile giriş yap. 🎉
+Tarayıcıda **https://2t1.online/dashboard/** → admin + şifren ile giriş. 🎉
 
-Loader URL'lerin artık: `https://2t1.online/loader/<script_id>.lua`
+Loader URL'lerin: `https://2t1.online/loader/<script_id>.lua`
 
 ---
 
 ## Opsiyonel
 
-**Origin'i sadece Cloudflare'e aç** (IP'ni gizli tutar, direkt saldırıyı önler):
+**Origin'i sadece Cloudflare'e aç** (IP'ni gizler, doğrudan saldırıyı keser):
 
 ```bash
 sudo bash /opt/2t1auth/deploy/cloudflare-ufw.sh
 ```
 
-**Discord botunu servis olarak çalıştır** (`.env`'de DISCORD_* dolduysa):
+**Discord botu** (`.env`'de `DISCORD_*` doluysa):
 
 ```bash
 cd /opt/2t1auth && sudo -u 2t1auth npm run bot:register
@@ -149,15 +268,33 @@ sudo systemctl daemon-reload && sudo systemctl enable --now 2t1auth-bot
 | Logları izle | `journalctl -u 2t1auth -f` |
 | Yeniden başlat | `sudo systemctl restart 2t1auth` |
 | Durum | `systemctl status 2t1auth` |
-| Kod güncelle | Adım 2'yi tekrarla → `cd /opt/2t1auth && sudo -u 2t1auth npm install --omit=dev` → `sudo systemctl restart 2t1auth` |
 | Dashboard eskimiş görünürse | Cloudflare → Caching → **Purge Everything** |
 
-**Yedekleme:** tek dosya — `/opt/2t1auth/data/2t1auth.db` (WAL modunda; `.db`, `.db-wal`, `.db-shm` üçünü birlikte kopyala veya `sqlite3 ... ".backup"` kullan).
+**Kod güncelleme** (veriye dokunmadan):
+
+```bash
+# Windows'ta: git pull + tar + scp (Adım 3)
+# VPS'te:
+sudo systemctl stop 2t1auth
+sudo tar -xzf ~/2t1auth.tar.gz -C /opt/2t1auth      # data/ ve .env arşivde yok, korunur
+sudo chown -R 2t1auth:2t1auth /opt/2t1auth
+cd /opt/2t1auth && sudo -u 2t1auth npm install --omit=dev
+sudo systemctl start 2t1auth
+```
+
+**Yedekleme** — tek dosya: `/opt/2t1auth/data/2t1auth.db`. WAL modunda olduğu
+için `.db`, `.db-wal`, `.db-shm` üçünü birlikte kopyala:
+
+```bash
+sudo tar -czf ~/2t1auth-yedek-$(date +%F).tar.gz -C /opt/2t1auth data
+```
 
 ## Sorun giderme
 
 - **502 Bad Gateway** → app çalışmıyor. `systemctl status 2t1auth`, `journalctl -u 2t1auth -e`.
-- **525/526 (Cloudflare)** → origin TLS sorunu. Cert dosyaları doğru mu, SSL modu **Full (strict)** mi?
-- **Sonsuz yönlendirme** → Cloudflare SSL modu **Flexible** olmasın (Full strict olmalı).
-- **Giriş yapılamıyor / cookie tutmuyor** → `BASE_URL` `https://...` ile başlamalı (Secure cookie bunu gerektirir).
-- **`better-sqlite3` hatası** → `sudo -u 2t1auth npm install --omit=dev` tekrar; Node 20 kurulu mu (`node -v`)?
+- **525 / 526 (Cloudflare)** → origin TLS sorunu. Cert dosyaları doğru mu, SSL modu **Full (strict)** mi?
+- **Sonsuz yönlendirme** → Cloudflare SSL modu **Flexible** olmasın; Full (strict) olacak.
+- **Giriş yapılamıyor / çerez tutmuyor** → `.env`'de `BASE_URL` `https://` ile başlamalı.
+- **Fontlar/arayüz eski** → yanlış branch'ten arşiv gitmiş. Adım 3'ü `git checkout` ile tekrarla, sonra Cloudflare cache'ini purge et.
+- **`better-sqlite3` derleme hatası** → `node -v` 20 mi? Değilse `sudo bash deploy/setup.sh` tekrar; `build-essential` gerekli.
+- **SSH kesildi** → ufw özel SSH portuna izin vermemiş. Sağlayıcının konsolundan gir, `sudo ufw allow <PORT>/tcp`.
