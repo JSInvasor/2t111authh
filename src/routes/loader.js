@@ -3,7 +3,7 @@
 const express = require('express');
 const config = require('../config');
 const scripts = require('../services/scripts');
-const { authenticate, reportTamper } = require('../services/auth');
+const { authenticate, reportTamper, recordViolation } = require('../services/auth');
 const nonce = require('../services/nonce');
 const { renderLoader } = require('../services/bootstrap');
 const { sessionProof, safeEqual } = require('../utils/crypto');
@@ -97,8 +97,12 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
   if (config.antiTamper) {
     // Anti-tamper: spend the handshake. Single-use, script-bound, IP-bound and
     // short-lived, so a captured auth request can't simply be sent again.
+    // Every rejection below is put on record against the key. A stock loader
+    // never lands here, so these are the one set of tamper signals that carry
+    // no false-positive risk — and the only ones worth auto-banning on.
     const spent = nonce.consume(String(body.nonce || ''), { scriptId, ip });
     if (!spent.ok) {
+      recordViolation({ scriptId, key, hwid, ip, executor, reason: spent.reason });
       return res.status(401).json({ success: false, message: 'Invalid or expired session — please retry' });
     }
 
@@ -114,6 +118,7 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
         executor,
       });
       if (!safeEqual(String(body.proof || ''), expected)) {
+        recordViolation({ scriptId, key, hwid, ip, executor, reason: 'proof_failed' });
         return res.status(401).json({ success: false, message: 'Session verification failed' });
       }
     }

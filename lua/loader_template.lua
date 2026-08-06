@@ -116,9 +116,21 @@ local function hooked(fn)
     return ok and isC == false
 end
 
--- Hard stops.
-if hooked(httpRequest) then return bail("hook:http", "tampered HTTP function detected.") end
-if hooked(loadChunk) then return bail("hook:loadstring", "tampered loadstring detected.") end
+-- Caught a hooked primitive. Whether that ends the run or is only put on record
+-- is a server setting (TAMPER_HARD_STOP), because the trade is uneven: a hook
+-- wrapped in newcclosure reads as a C closure and walks past this check either
+-- way, so stopping buys little against anyone serious while costing every user
+-- whose executor wraps these functions for its own reasons.
+local HARD_STOP = {{HARD_STOP}}
+
+if hooked(httpRequest) then
+    report("hook:http")
+    if HARD_STOP then return warn("[2t1auth] tampered HTTP function detected.") end
+end
+if hooked(loadChunk) then
+    report("hook:loadstring")
+    if HARD_STOP then return warn("[2t1auth] tampered loadstring detected.") end
+end
 
 -- Advisory signals.
 local jsonEncode, jsonDecode

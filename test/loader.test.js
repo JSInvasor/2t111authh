@@ -19,6 +19,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 
+const config = require('../src/config');
 const scripts = require('../src/services/scripts');
 const keys = require('../src/services/keys');
 const nonce = require('../src/services/nonce');
@@ -335,4 +336,29 @@ test('the session key the server encrypts with is salt-dependent', { skip }, () 
   const b = sessionKey({ ...args, salt: 'salt-two' });
   assert.notDeepStrictEqual(a, b);
   assert.strictEqual(a.length, 32);
+});
+
+test('with the hard stop off, a caught hook is reported and the user still runs', { skip }, () => {
+  const { script, key } = mkScript();
+  const server = makeServer(script.id);
+  const saved = config.tamperHardStop;
+  config.tamperHardStop = false;
+  let run;
+  try {
+    run = runLoader(renderLoader(script, { obfuscate: false }), {
+      scriptKey: key.value,
+      server,
+      // Same environment that stops the run when the hard stop is on.
+      globals: 'iscclosure = function() return false end',
+    });
+  } finally {
+    config.tamperHardStop = saved;
+  }
+
+  assert.strictEqual(run.result, 42, 'the paying user was locked out anyway');
+  assert.ok(
+    run.reports.some((r) => r.reason === 'hook:http'),
+    'the signal was lost — reporting is the whole point of the softer setting'
+  );
+  assert.deepStrictEqual(run.warnings, [], 'user was warned despite the softer setting');
 });

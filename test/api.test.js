@@ -253,6 +253,113 @@ test('the report endpoint validates its input', async () => {
   assert.strictEqual((await post('/api/v1/report', { script_id: script.id, key: 'k'.repeat(500) })).status, 400);
 });
 
+/* ---------------------------- protocol signals ---------------------------- */
+
+const db = require('../src/db');
+const config = require('../src/config');
+
+const violationsFor = (keyValue) =>
+  db
+    .prepare(
+      `SELECT e.reason FROM executions e
+       JOIN keys k ON k.id = e.key_id
+       WHERE k.value = ? AND e.reason LIKE 'protocol:%' ORDER BY e.id`
+    )
+    .all(keyValue)
+    .map((r) => r.reason);
+
+// The whole point of banning on these is that no honest client produces one.
+// If a clean run ever left a row here, the auto-ban would eat paying users.
+test('a clean run records no protocol violation', async () => {
+  const { script, key } = mk();
+  for (let i = 0; i < 3; i++) {
+    const { body } = await openSession(script, key);
+    assert.strictEqual((await post('/api/v1/auth', body)).status, 200);
+  }
+  assert.deepStrictEqual(violationsFor(key), []);
+});
+
+test('replaying a spent handshake is recorded against the key', async () => {
+  const { script, key } = mk();
+  const { body } = await openSession(script, key);
+  assert.strictEqual((await post('/api/v1/auth', body)).status, 200);
+
+  assert.strictEqual((await post('/api/v1/auth', body)).status, 401, 'replay was accepted');
+  assert.deepStrictEqual(violationsFor(key), ['protocol:unknown_nonce']);
+});
+
+test('editing a field of a signed request is recorded as a bad signature', async () => {
+  const { script, key } = mk({ hwid_lock: 0 });
+  const { body } = await openSession(script, key);
+  const res = await post('/api/v1/auth', { ...body, hwid: 'SOMEONE-ELSES-DEVICE' });
+  assert.strictEqual(res.status, 401);
+  assert.deepStrictEqual(violationsFor(key), ['protocol:proof_failed']);
+});
+
+// The nonce's script binding is checked before the signature, so this lands as
+// the more specific reason of the two rather than a generic bad proof.
+test('a nonce minted for one script cannot be spent on another', async () => {
+  const a = mk();
+  const b = mk();
+  const { body } = await openSession(a.script, a.key);
+  const res = await post('/api/v1/auth', { ...body, script_id: b.script.id, key: b.key });
+  assert.strictEqual(res.status, 401);
+  assert.deepStrictEqual(violationsFor(b.key), ['protocol:nonce_script_mismatch']);
+});
+
+test('PROTOCOL_BAN off (the default) never bans, however many violations', async () => {
+  const { script, key } = mk();
+  const { body } = await openSession(script, key);
+  await post('/api/v1/auth', body);
+  for (let i = 0; i < 8; i++) await post('/api/v1/auth', body);
+
+  assert.strictEqual(config.protocolBan, 0, 'default changed — PROTOCOL_BAN must ship off');
+  assert.strictEqual(db.prepare('SELECT status FROM keys WHERE value = ?').get(key).status, 'active');
+});
+
+test('PROTOCOL_BAN bans the key once the violations pile up', async () => {
+  const { script, key } = mk();
+  const saved = config.protocolBan;
+  config.protocolBan = 3;
+  try {
+    const { body } = await openSession(script, key);
+    assert.strictEqual((await post('/api/v1/auth', body)).status, 200);
+
+    for (let i = 0; i < 3; i++) await post('/api/v1/auth', body); // replays
+    assert.strictEqual(db.prepare('SELECT status FROM keys WHERE value = ?').get(key).status, 'banned');
+
+    // and the banned key is refused on a fresh, perfectly-formed session
+    const clean = await openSession(script, key);
+    const res = await post('/api/v1/auth', clean.body);
+    assert.strictEqual(res.status, 403);
+  } finally {
+    config.protocolBan = saved;
+  }
+});
+
+test('a violation carrying an unknown key is still recorded, and bans nobody', async () => {
+  const { script } = mk();
+  const saved = config.protocolBan;
+  config.protocolBan = 1;
+  try {
+    const res = await post('/api/v1/auth', {
+      script_id: script.id,
+      key: 'NOT-A-REAL-KEY',
+      hwid: HWID,
+      executor: EXEC,
+      nonce: 'made-up',
+      proof: 'x'.repeat(64),
+    });
+    assert.strictEqual(res.status, 401);
+    const n = db
+      .prepare("SELECT COUNT(*) AS n FROM executions WHERE script_id = ? AND key_id IS NULL AND reason LIKE 'protocol:%'")
+      .get(script.id).n;
+    assert.ok(n >= 1, 'anonymous violation was dropped');
+  } finally {
+    config.protocolBan = saved;
+  }
+});
+
 /* -------------------------------- health -------------------------------- */
 
 test('health check reports the database is reachable', async () => {

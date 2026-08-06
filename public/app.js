@@ -560,6 +560,55 @@ async function renderScriptsList() {
   bindCardTilt(view());
 }
 
+/* Split the rejection reasons the server records into the two kinds that matter,
+   because they are worth very different amounts. A `protocol:` row is the server
+   catching a request a stock loader cannot make — a spent nonce, a proof that
+   does not verify. A `client_tamper:` row is the loader's own report, which
+   anyone can forge, so it is a hint and nothing more. */
+const SIGNALS = {
+  'protocol:unknown_nonce': ['Nonce not issued by us', 'hard'],
+  'protocol:expired_nonce': ['Handshake expired before use', 'hard'],
+  'protocol:nonce_script_mismatch': ['Nonce used on another script', 'hard'],
+  'protocol:nonce_ip_mismatch': ['Handshake spent from another IP', 'hard'],
+  'protocol:proof_failed': ['Request signature did not verify', 'hard'],
+  hwid_mismatch: ['Key used on a second device', 'hard'],
+  auto_banned_sharing: ['Auto-banned — too many devices', 'hard'],
+  auto_banned_sharing_ip: ['Auto-banned — too many networks', 'hard'],
+  key_rate_limited: ['Key throttled', 'soft'],
+};
+
+function signalRow(r) {
+  const [label, weight] = SIGNALS[r.reason] ||
+    (String(r.reason).startsWith('client_tamper:')
+      ? [`Client reported ${String(r.reason).slice(14).replace(/[:_]/g, ' ')}`, 'soft']
+      : [r.reason, 'soft']);
+  return `<tr>
+    <td>${fmtDate(r.created_at)}</td>
+    <td><span class="pill pill-signal pill-${weight === 'hard' ? 'banned' : 'paused'}">${icon(weight === 'hard' ? 'shield-check' : 'info')} ${esc(label)}</span></td>
+    <td class="hwid-cell" title="${esc(r.hwid || '')}">${r.hwid ? esc(r.hwid) : '—'}</td>
+    <td>${r.ip ? esc(r.ip) : '—'}</td>
+    <td>${r.executor ? esc(r.executor) : '—'}</td>
+  </tr>`;
+}
+
+function securityPanel(recent) {
+  const rows = (recent || []).filter((r) => !r.success && r.reason !== 'ok');
+  const hard = rows.filter((r) => (SIGNALS[r.reason] || [])[1] === 'hard').length;
+  return `<div class="panel">
+    <div class="panel-head">
+      <h2>${icon('shield-check')} Security signals
+        <span class="sub">${rows.length ? `${fmtNum(hard)} verified · ${fmtNum(rows.length - hard)} advisory` : 'last 20 events'}</span>
+      </h2>
+    </div>
+    ${rows.length
+      ? `<div class="table-wrap"><table>
+          <thead><tr><th>When</th><th>Signal</th><th>HWID</th><th>IP</th><th>Executor</th></tr></thead>
+          <tbody>${rows.map(signalRow).join('')}</tbody>
+        </table></div>`
+      : `<div class="panel-body">${emptyState('shield-check', 'Nothing to look at', 'Rejected handshakes, bad request signatures and device-lock hits land here.')}</div>`}
+  </div>`;
+}
+
 /* ===================== script detail ===================== */
 
 let currentKeys = [];
@@ -625,6 +674,8 @@ async function renderScriptDetail(id) {
       </div>
       <pre class="snippet">${snippetHTML(snippet)}</pre>
     </div>
+
+    ${securityPanel(stats.recent)}
 
     <div class="panel">
       <div class="panel-head">

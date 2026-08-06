@@ -1950,6 +1950,11 @@ h2.section .count {
   border: 1px solid transparent;
   text-transform: capitalize;
 }
+/* The capitalize above suits the one-word key statuses it was written for; the
+   security signals are written as sentences and would come out Title Cased. */
+.pill-signal {
+  text-transform: none;
+}
 .pill svg.ico {
   width: 11.5px;
   height: 11.5px;

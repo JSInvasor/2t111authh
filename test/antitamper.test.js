@@ -233,3 +233,46 @@ test('reports are advisory only — off by default they never ban', () => {
   for (let i = 0; i < 20; i++) reportTamper({ scriptId: s.id, key: k.value, reason: 'hook:http' });
   assert.strictEqual(keys.getKeyById(k.id).status, 'active');
 });
+
+/* ------------------------- hooked-primitive policy ------------------------- */
+
+const { renderLoader } = require('../src/services/bootstrap');
+
+test('TAMPER_HARD_STOP=1 makes a caught hook end the run', () => {
+  withConfig({ tamperHardStop: true }, () => {
+    const lua = renderLoader({ id: 'x', name: 'X' }, { obfuscate: false });
+    assert.match(lua, /local HARD_STOP = true/);
+  });
+});
+
+test('TAMPER_HARD_STOP=0 keeps the run going and only reports', () => {
+  withConfig({ tamperHardStop: false }, () => {
+    const lua = renderLoader({ id: 'x', name: 'X' }, { obfuscate: false });
+    assert.match(lua, /local HARD_STOP = false/);
+    // the report still goes out either way — that is the point of the setting
+    assert.match(lua, /report\("hook:http"\)/);
+    assert.match(lua, /report\("hook:loadstring"\)/);
+  });
+});
+
+test('the rendered loader never leaves a template placeholder behind', () => {
+  for (const hard of [true, false]) {
+    withConfig({ tamperHardStop: hard }, () => {
+      assert.ok(!/\{\{/.test(renderLoader({ id: 'x', name: 'X' }, { obfuscate: false })));
+    });
+  }
+});
+
+test('the payload stub carries its own hook check only while the hard stop is on', () => {
+  const { _buildStub } = require('../src/services/obfuscator');
+  const parts = { dataB64: 'AAAA', keyB64: 'BBBB', chk: { h1: 1, h2: 2 } };
+
+  withConfig({ tamperHardStop: true }, () => {
+    assert.match(_buildStub(parts), /iscclosure or is_c_closure/);
+  });
+  // Otherwise it would keep refusing after the loader was told to stand down —
+  // and refuse silently, with no warning to the user and no report to us.
+  withConfig({ tamperHardStop: false }, () => {
+    assert.ok(!/iscclosure/.test(_buildStub(parts)));
+  });
+});

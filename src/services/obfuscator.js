@@ -21,6 +21,7 @@
 // Source is stored in plaintext; obfuscation happens only here, at delivery.
 
 const crypto = require('crypto');
+const config = require('../config');
 
 let luamin = null;
 try {
@@ -191,11 +192,15 @@ ${H2}=(${H2}*131+v)%999999937
 end
 if ${H1}~=${chk.h1} or ${H2}~=${chk.h2} then return end
 local ${LD}=loadstring or load
-local ${IC}=iscclosure or is_c_closure
+${
+  config.tamperHardStop
+    ? `local ${IC}=iscclosure or is_c_closure
 if ${IC} then
 local ok,isC=pcall(${IC},${LD})
 if ok and isC==false then return end
-end
+end`
+    : ''
+}
 local ${FN}=${LD}(${SRC})
 if ${FN} then return ${FN}() end`;
 }
