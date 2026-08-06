@@ -295,6 +295,42 @@ sudo systemctl start 2t1auth
 > sebebi: klasör `2t1auth` kullanıcısına ait, root'un başkasına ait bir depoda
 > git çalıştırması `detected dubious ownership` hatası verir.
 
+**Filigran çalışıyor mu** — güncellemeden sonra bir kez bak. Her korumalı
+teslimat, onu isteyen key'in kimliğini taşır; ama bu ancak kaynak Lua 5.x
+olarak ayrıştırılabiliyorsa mümkün. Luau'ya özgü sözdizimi (`local x: number`
+gibi tip notasyonu) varsa script sessizce izsiz gider — çalışır, sadece
+izlenemez. Hangi script'in ne durumda olduğunu şu söyler:
+
+```bash
+cd /opt/2t1auth
+sudo -u 2t1auth node -e '
+const scripts = require("./src/services/scripts");
+const { deliverySource } = require("./src/services/obfuscator");
+const wm = require("./src/services/watermark");
+for (const row of scripts.listScripts()) {
+  const s = scripts.getScript(row.id);
+  const plan = s.obfuscate ? wm.planFor(s.id, deliverySource(s)) : null;
+  console.log(
+    plan ? "IZLI     " : s.obfuscate ? "IZ YOK   " : "KORUMASIZ",
+    plan ? String(plan.sites.length).padStart(4) + " tasiyici" : "             ",
+    s.name
+  );
+}'
+```
+
+- `IZLI` — sızan kopya key'i ele verir. Taşıyıcı sayısı ne kadar yüksekse,
+  parçalı bir sızıntıdan o kadar çok bit kurtarılır (5 KB'lık bir script'te
+  ~127, 30 KB'lıkta ~173).
+- `KORUMASIZ` — script ayarlarında **Obfuscate & encrypt** kapalı. Filigran
+  ona bağlı, çünkü kopyayı normal bir build'den ayırt edilemez kılan o.
+- `IZ YOK` — koruma açık ama kaynak Lua 5.x olarak ayrıştırılamıyor.
+  Minify de aynı sebeple zaten atlanıyordu; script çalışır, izlenemez.
+
+> Bu sürümden **önce** dağıtılmış kopyalarda filigran yok. Şu an ortalıkta
+> dolaşan bir sızıntıyı geriye dönük izleyemezsin — panel doğru şekilde
+> "bizim teslimatımız değil" der. İz, bu güncellemeden sonraki teslimatlarda
+> başlar.
+
 **Yedekleme** — tek dosya: `/opt/2t1auth/data/2t1auth.db`. WAL modunda olduğu
 için `.db`, `.db-wal`, `.db-shm` üçünü birlikte kopyala:
 
