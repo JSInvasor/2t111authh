@@ -183,10 +183,10 @@ function authenticate({ scriptId, key, hwid, ip, executor, session = null }) {
       key,
       hwid: hwid || '',
     });
-    result.script = obfuscate(script, { key: derived });
+    result.script = obfuscate(script, { key: derived, keyId: row.id });
     result.enc = 'session';
   } else {
-    result.script = obfuscate(script);
+    result.script = obfuscate(script, { keyId: row.id });
   }
   return result;
 }

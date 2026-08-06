@@ -609,6 +609,131 @@ function securityPanel(recent) {
   </div>`;
 }
 
+/* ===================== leak tracing ===================== */
+
+/* Every protected delivery is fingerprinted with the key that fetched it, so a
+   dump found in the wild can be read back to its source. Paste what you found —
+   it does not have to be complete, still minified, or even parse. */
+function tracePanel(script) {
+  if (!script.obfuscate) {
+    return `<div class="panel">
+      <div class="panel-head"><h2>${icon('fingerprint')} Trace a leak</h2></div>
+      <div class="panel-body">${emptyState(
+        'fingerprint',
+        'Copies of this script are identical',
+        'Turn on “Obfuscate & encrypt” below and future deliveries carry a per-key fingerprint, so a leaked dump names whoever leaked it.'
+      )}</div>
+    </div>`;
+  }
+  return `<div class="panel">
+    <div class="panel-head">
+      <h2>${icon('fingerprint')} Trace a leak <span class="sub">read a dump back to the key it came from</span></h2>
+    </div>
+    <div class="panel-body">
+      <p class="muted">Paste the leaked script. A fragment is fine — so is a copy that has been reformatted, re-minified, or had someone else's code pasted into it.</p>
+      <textarea id="traceSample" class="trace-input" rows="8" spellcheck="false" placeholder="-- paste the leaked script here"></textarea>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" data-action="run-trace">${icon('search')} Trace</button>
+        <span class="spacer"></span>
+      </div>
+      <div id="traceResult"></div>
+    </div>
+  </div>`;
+}
+
+/* Odds are the whole story here, so they are shown rather than hidden behind a
+   verdict: `expected_false` is how many of the keys searched would score this
+   well by chance. A confident answer is one where that number is tiny AND one
+   key stands clear of the field. */
+function traceResultHTML(t) {
+  const best = t.matches[0];
+  const chance = (n) => (n < 0.001 ? `1 in ${fmtNum(Math.round(1 / n))}` : n.toFixed(2));
+  const read = t.carriers_by_kind.read;
+  const total = t.carriers_by_kind.total;
+  const channel = (label, k) =>
+    total[k] ? `<span class="trace-chan${read[k] ? '' : ' dead'}">${label} ${fmtNum(read[k])}/${fmtNum(total[k])}</span>` : '';
+
+  // Why it failed matters more than that it failed, and the three reasons call
+  // for different next steps — so say which one this is rather than one vague
+  // line that sends the user off to find a longer sample they may not need.
+  function whyNot() {
+    if (!t.carriers_read) {
+      return 'Found none of this script’s fingerprint here. Either this is not a copy of this script, or it was delivered before watermarking was switched on.';
+    }
+    if (total.ident && !read.ident) {
+      return `None of the variable names here are ones this server issued, and the ${fmtNum(t.carriers_read)} marks that did read back vote like chance rather than like a key — so this is probably not a delivery of ours. Note that a copy someone merely re-minified still names its key.`;
+    }
+    return `Only ${fmtNum(t.bits_recovered)} of ${fmtNum(t.bits_possible)} fingerprint bits survived here — too few to rule out coincidence. A longer piece of the leak would settle it.`;
+  }
+
+  const head = t.confident
+    ? `<div class="trace-verdict hit">
+         ${icon('fingerprint')}
+         <div>
+           <strong>This copy was built for <code>${esc(best.value)}</code></strong>
+           <span class="muted">Out of ${fmtNum(t.candidates)} keys, the odds of the wrong one scoring this well are ${chance(best.expected_false)}.</span>
+         </div>
+       </div>`
+    : `<div class="trace-verdict miss">
+         ${icon('circle-alert')}
+         <div>
+           <strong>Not enough to name a key</strong>
+           <span class="muted">${whyNot()}</span>
+         </div>
+       </div>`;
+
+  const rows = t.matches
+    .slice(0, 5)
+    .map(
+      (m, i) => `<tr class="${i === 0 && t.confident ? 'trace-best' : ''}">
+      <td><code>${esc(m.value)}</code></td>
+      <td><span class="pill pill-${esc(m.status)}">${esc(m.status)}</span></td>
+      <td>${m.note ? esc(m.note) : '—'}</td>
+      <td>${m.discord_id ? esc(m.discord_id) : '—'}</td>
+      <td>${fmtNum(m.matched)}/${fmtNum(t.bits_recovered)}</td>
+      <td>${m.expected_false < 0.001 ? chance(m.expected_false) : m.expected_false.toFixed(2)}</td>
+      <td>${fmtDate(m.last_seen)}</td>
+      <td class="row-actions">
+        <button class="icon-btn" title="Copy key" data-action="copy" data-copy="${esc(m.value)}">${icon('copy')}</button>
+        ${m.status === 'banned' ? '' : `<button class="icon-btn danger" title="Ban this key" data-action="key-ban" data-id="${m.id}">${icon('ban')}</button>`}
+      </td>
+    </tr>`
+    )
+    .join('');
+
+  return `${head}
+    ${t.note ? `<p class="trace-note">${icon('info')} ${esc(t.note)}</p>` : ''}
+    <div class="trace-evidence">
+      <span>${fmtNum(t.bits_recovered)}/${fmtNum(t.bits_possible)} fingerprint bits</span>
+      <span>${fmtNum(t.carriers_read)}/${fmtNum(t.carriers_total)} marks readable</span>
+      ${channel('names', 'ident')} ${channel('strings', 'str')} ${channel('numbers', 'num')}
+      <span>${fmtNum(t.candidates)} keys searched</span>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Status</th><th>Note</th><th>Discord</th><th>Match</th><th>By chance</th><th>Last seen</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+async function runTrace() {
+  const box = $('#traceSample');
+  const out = $('#traceResult');
+  if (!box || !out || !currentScript) return;
+  const sample = box.value;
+  if (sample.trim().length < 40) { toast('Paste more of the leaked script', 'err'); return; }
+
+  out.innerHTML = `<p class="muted">${icon('search')} Reading the fingerprint…</p>`;
+  hydrateIcons(out);
+  try {
+    const { trace } = await api(`/api/v1/scripts/${currentScript.id}/trace`, { method: 'POST', body: { sample } });
+    out.innerHTML = traceResultHTML(trace);
+    hydrateIcons(out);
+  } catch (e) {
+    out.innerHTML = '';
+    toast(e.message, 'err');
+  }
+}
+
 /* ===================== script detail ===================== */
 
 let currentKeys = [];
@@ -676,6 +801,8 @@ async function renderScriptDetail(id) {
     </div>
 
     ${securityPanel(stats.recent)}
+
+    ${tracePanel(script)}
 
     <div class="panel">
       <div class="panel-head">
@@ -1187,6 +1314,7 @@ document.addEventListener('click', (e) => {
     case 'do-gen-keys': doGenKeys(); break;
     case 'copy': copy(t.dataset.copy); break;
     case 'export-csv': if (currentScript) window.location.href = `/api/v1/scripts/${currentScript.id}/keys.csv`; break;
+    case 'run-trace': runTrace(); break;
     case 'modal-close': closeModal(); break;
     case 'modal-backdrop': if (e.target === t) closeModal(); break;
     case 'modal-close-refresh': closeModal(); if (state.refresh) state.refresh(); break;

@@ -97,6 +97,12 @@ const config = {
   // either way, so this trades a weak barrier against locking out the executors
   // that wrap those functions legitimately.
   tamperHardStop: bool(process.env.TAMPER_HARD_STOP, true),
+  // Fingerprint every protected delivery with the key that asked for it, so a
+  // leaked dump can be traced back to whoever leaked it. Costs nothing at
+  // runtime and cannot false-positive — the mark is read, not guessed — but it
+  // needs the script's `obfuscate` flag on, since that is what makes a rewritten
+  // copy indistinguishable from a normal build.
+  watermark: bool(process.env.WATERMARK, true),
 
   // Key-sharing: auto-ban a key seen from more than N distinct HWIDs in the window (0 = off).
   keyShareMaxHwids: int(process.env.KEY_SHARE_MAX_HWIDS, 0),

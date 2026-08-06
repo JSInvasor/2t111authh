@@ -30,7 +30,8 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
-    "luamin": "^1.0.4"
+    "luamin": "^1.0.4",
+    "luaparse": "^0.2.1"
   },
   "devDependencies": {
     "fengari": "^0.1.4",

@@ -4,6 +4,8 @@ const express = require('express');
 const config = require('../config');
 const scripts = require('../services/scripts');
 const keys = require('../services/keys');
+const watermark = require('../services/watermark');
+const { deliverySource } = require('../services/obfuscator');
 const { scriptStats } = require('../services/stats');
 
 const router = express.Router();
@@ -88,6 +90,59 @@ router.get('/:id/keys.csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}_keys.csv"`);
   res.send(csv);
+});
+
+// ---- leak tracing ----
+
+/**
+ * Read the watermark out of a leaked copy and name the key it was built for.
+ *
+ * The sample does not have to parse, be complete, or still be minified — the
+ * mark is carried redundantly by three independent channels and every carrier
+ * is self-locating, so a fragment or a re-minified copy still decodes.
+ *
+ * `expected_false` is the number that matters: how many of the keys searched
+ * would score this well by chance alone. `confident` is only true when that is
+ * under 0.01 AND one key stands clear of the field.
+ */
+router.post('/:id/trace', (req, res) => {
+  const script = scripts.getScript(req.params.id);
+  if (!script) return res.status(404).json({ success: false, message: 'Not found' });
+
+  const sample = String((req.body || {}).sample || '');
+  if (sample.trim().length < 40) {
+    return res.status(400).json({ success: false, message: 'Paste the leaked script (at least a few lines of it).' });
+  }
+  if (!config.watermark) {
+    return res.status(400).json({ success: false, message: 'Watermarking is disabled (WATERMARK=0), so deliveries carry no mark.' });
+  }
+  if (!script.obfuscate) {
+    return res.status(400).json({
+      success: false,
+      message: 'This script is delivered unprotected, so its copies are identical and carry no mark. Turn on obfuscation to make future deliveries traceable.',
+    });
+  }
+
+  const plan = watermark.planFor(script.id, deliverySource(script));
+  if (!plan) {
+    return res.status(400).json({
+      success: false,
+      message: 'This script could not be watermarked (its source does not parse as Lua 5.x), so its deliveries carry no mark.',
+    });
+  }
+
+  const candidates = keys.allKeysForTrace(script.id);
+  if (!candidates.length) {
+    return res.status(400).json({ success: false, message: 'This script has no keys to trace against.' });
+  }
+
+  const result = watermark.trace(plan, sample, script.id, candidates);
+  // Nothing readable at all: almost always a stub someone captured off the wire
+  // rather than the source they dumped out of it.
+  if (!result.carriers_read && /["'][A-Za-z0-9+/=]{200,}["']/.test(sample)) {
+    result.note = 'This looks like an encrypted delivery stub, not the script inside it. Paste the decrypted source that was dumped.';
+  }
+  res.json({ success: true, trace: result });
 });
 
 // ---- analytics ----

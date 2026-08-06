@@ -2698,6 +2698,95 @@ tr:hover .row-actions,
   background: var(--chart-track);
 }
 
+/* ------------------------------------------------------------ leak trace */
+.trace-input {
+  width: 100%;
+  min-height: 150px;
+  margin-bottom: 4px;
+}
+.panel-body > .muted + .trace-input {
+  margin-top: 12px;
+}
+
+/* The verdict, stated plainly. Colour carries none of the meaning on its own —
+   the sentence next to it says the same thing. */
+.trace-verdict {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 15px 16px;
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.trace-verdict svg.ico {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+.trace-verdict.hit {
+  border-color: var(--bad-line);
+  background: var(--bad-tint);
+}
+.trace-verdict.hit svg.ico {
+  color: var(--bad);
+}
+.trace-verdict div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.trace-verdict strong {
+  font-weight: 600;
+}
+.trace-verdict code {
+  font-family: var(--mono);
+  word-break: break-all;
+}
+.trace-verdict .muted {
+  font-size: 12.5px;
+}
+
+.trace-note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.trace-note svg.ico {
+  vertical-align: -3px;
+  margin-right: 5px;
+}
+
+/* How much of the fingerprint actually came back, per channel — this is what
+   separates "a copy of ours, renamed" from "not our file at all". */
+.trace-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+.trace-evidence > span {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.trace-evidence .trace-chan.dead {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+tr.trace-best {
+  background: var(--bad-tint);
+}
+tr.trace-best code {
+  font-weight: 600;
+}
+
 /* ----------------------------------------------------------- responsive */
 @media (max-width: 1080px) {
   .content {

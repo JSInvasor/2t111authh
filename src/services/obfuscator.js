@@ -22,6 +22,7 @@
 
 const crypto = require('crypto');
 const config = require('../config');
+const watermark = require('./watermark');
 
 let luamin = null;
 try {
@@ -121,6 +122,12 @@ function checksum(str) {
 function buildStub({ dataB64, keyB64 = null, chk }) {
   const [KEY, DATA, B64, XOR, RC4, SRC, LD, FN, H1, H2, IC, BYTE] = distinctNames(12);
 
+  // The decrypted chunk is named explicitly ("=" ⇒ use verbatim). Left unnamed,
+  // Lua would title it with the first ~60 characters of the source, so every
+  // runtime error would echo a slice of the plaintext — and, once deliveries are
+  // watermarked, a slice that differs per key. The name is deliberately generic:
+  // the bootstrap must not carry anything that identifies what it is.
+
   // How the stub obtains its RC4 key.
   const keyInit = keyB64
     ? `local ${KEY}=${B64}("${keyB64}")`
@@ -201,21 +208,30 @@ if ok and isC==false then return end
 end`
     : ''
 }
-local ${FN}=${LD}(${SRC})
+local ${FN}=${LD}(${SRC},"=script")
 if ${FN} then return ${FN}() end`;
 }
 
 /**
  * Obfuscate a script for delivery. Pass the script row (needs id, source, updated_at).
  * @param {object} script
- * @param {{minify?:boolean, key?:Buffer|null}} [opts]
+ * @param {{minify?:boolean, key?:Buffer|null, keyId?:number|string|null}} [opts]
  *   key — session key both sides derived. Given, it is used but NOT embedded
  *   (the stub reads it from `...`). Omitted, a random key is generated and
  *   shipped inside the stub.
+ *   keyId — license key this copy is for. Given, the source is watermarked so a
+ *   dump of it can be traced back here. Applied before packing, so the stub's
+ *   checksum covers the mark and it cannot be stripped without breaking the stub.
  * @returns {string} Lua decryptor stub
  */
-function obfuscate(script, { minify = true, key = null } = {}) {
-  return pack(minify ? minifySource(script) : script.source, key);
+function obfuscate(script, { minify = true, key = null, keyId = null } = {}) {
+  const source = watermark.apply(deliverySource(script, minify), { scriptId: script.id, keyId });
+  return pack(source, key);
+}
+
+/** Exactly what gets watermarked and packed — the tracer needs the same bytes. */
+function deliverySource(script, minify = true) {
+  return minify ? minifySource(script) : script.source;
 }
 
 /**
@@ -242,6 +258,7 @@ function pack(source, key) {
 module.exports = {
   obfuscate,
   obfuscateChunk,
+  deliverySource,
   rc4,
   checksum,
   _buildStub: buildStub,

@@ -360,6 +360,77 @@ test('a violation carrying an unknown key is still recorded, and bans nobody', a
   }
 });
 
+/* ----------------------------- leak tracing ----------------------------- */
+// End to end: a real key auths, the payload it gets handed is decrypted the way
+// a thief would dump it, and the admin trace endpoint names that key back.
+
+const ADMIN = { authorization: `Bearer ${process.env.ADMIN_API_KEY}` };
+const HUB = require('node:fs').readFileSync(path.join(__dirname, 'helpers', 'hub.lua'), 'utf8');
+
+/** Decrypt an inline-key delivery stub back to the source it carries. */
+function unwrap(stub) {
+  const { rc4 } = require('../src/services/obfuscator');
+  const data = stub.match(/^local \w+="([A-Za-z0-9+/=]*)"/m);
+  const key = stub.match(/=\w+\("([A-Za-z0-9+/=]+)"\)/);
+  assert.ok(data && key, 'not an inline-key stub');
+  return rc4(Buffer.from(key[1], 'base64'), Buffer.from(data[1], 'base64')).toString('utf8');
+}
+
+test('a dumped delivery traces back to the key that fetched it', async () => {
+  const script = scripts.createScript({ name: 'Traceable', source: HUB, obfuscate: 1 });
+  const made = keys.createKeys(script.id, { count: 40 });
+  const mine = made[17];
+
+  // Session encryption off for this one, so the test can decrypt the payload
+  // the same way an executor-side dump would see the loaded chunk.
+  const saved = config.sessionEncryption;
+  config.sessionEncryption = false;
+  let leaked;
+  try {
+    const { body } = await openSession(script, mine.value);
+    const res = await post('/api/v1/auth', body);
+    assert.strictEqual(res.status, 200, res.text);
+    leaked = unwrap(res.body.script);
+  } finally {
+    config.sessionEncryption = saved;
+  }
+
+  const res = await post(`/api/v1/scripts/${script.id}/trace`, { sample: leaked }, ADMIN);
+  assert.strictEqual(res.status, 200, res.text);
+  const t = res.body.trace;
+  assert.ok(t.confident, `not confident: ${JSON.stringify(t.matches[0])}`);
+  assert.strictEqual(t.matches[0].id, mine.id);
+  assert.strictEqual(t.matches[0].value, mine.value, 'the answer should name the key itself');
+  assert.strictEqual(t.candidates, 40);
+
+  // Someone else's copy of the same script must not come back as this key.
+  const theirs = await post(`/api/v1/scripts/${script.id}/trace`, { sample: HUB }, ADMIN);
+  assert.ok(!theirs.body.trace.confident, 'the unmarked master accused a key');
+});
+
+test('trace refuses what it cannot answer', async () => {
+  const script = scripts.createScript({ name: 'Traceable 2', source: HUB, obfuscate: 1 });
+  keys.createKeys(script.id, { count: 2 });
+
+  const short = await post(`/api/v1/scripts/${script.id}/trace`, { sample: 'local x = 1' }, ADMIN);
+  assert.strictEqual(short.status, 400);
+
+  const plain = scripts.createScript({ name: 'Unprotected', source: HUB, obfuscate: 0 });
+  keys.createKeys(plain.id, { count: 1 });
+  const res = await post(`/api/v1/scripts/${plain.id}/trace`, { sample: HUB }, ADMIN);
+  assert.strictEqual(res.status, 400);
+  assert.match(res.body.message, /obfuscation/i);
+
+  const missing = await post('/api/v1/scripts/sc_nope/trace', { sample: HUB }, ADMIN);
+  assert.strictEqual(missing.status, 404);
+});
+
+test('trace is admin-only', async () => {
+  const script = scripts.createScript({ name: 'Traceable 3', source: HUB, obfuscate: 1 });
+  const res = await post(`/api/v1/scripts/${script.id}/trace`, { sample: HUB });
+  assert.strictEqual(res.status, 401);
+});
+
 /* -------------------------------- health -------------------------------- */
 
 test('health check reports the database is reachable', async () => {
