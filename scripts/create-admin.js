@@ -19,5 +19,10 @@ if (String(password).length < 6) {
   process.exit(1);
 }
 
-admins.upsertAdmin(String(username), String(password));
-console.log(`Admin "${username}" created/updated. Log in at /dashboard`);
+admins
+  .upsertAdmin(String(username), String(password))
+  .then(() => console.log(`Admin "${username}" created/updated. Log in at /dashboard`))
+  .catch((err) => {
+    console.error('Failed to create admin:', err.message);
+    process.exit(1);
+  });

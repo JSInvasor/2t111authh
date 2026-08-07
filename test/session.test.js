@@ -29,6 +29,10 @@ test('role and reseller id round-trip', () => {
   assert.strictEqual(p.rid, 7);
 });
 
+test('the token carries the version it was issued under', () => {
+  assert.strictEqual(verifyToken(createToken('admin', { tv: 4 })).tv, 4);
+});
+
 test('garbage tokens are rejected', () => {
   assert.strictEqual(verifyToken('not-a-token'), null);
   assert.strictEqual(verifyToken(''), null);

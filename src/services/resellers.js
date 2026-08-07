@@ -10,10 +10,11 @@ const publicCols =
   '(SELECT COUNT(*) FROM reseller_scripts rs WHERE rs.reseller_id = resellers.id) AS scripts, ' +
   '(SELECT COUNT(*) FROM keys k WHERE k.reseller_id = resellers.id) AS keys';
 
-function create({ username, password, credits = 0 }) {
+async function create({ username, password, credits = 0 }) {
+  const hash = await hashPassword(password);
   const info = db
     .prepare('INSERT INTO resellers (username, password_hash, credits, created_at) VALUES (?, ?, ?, ?)')
-    .run(username, hashPassword(password), Math.max(0, parseInt(credits, 10) || 0), now());
+    .run(username, hash, Math.max(0, parseInt(credits, 10) || 0), now());
   return getById(info.lastInsertRowid);
 }
 
@@ -27,8 +28,10 @@ function list() {
   return db.prepare(`SELECT ${publicCols} FROM resellers ORDER BY created_at DESC`).all();
 }
 
-function setPassword(id, password) {
-  db.prepare('UPDATE resellers SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
+/** Changing the password also retires every session token issued before it. */
+async function setPassword(id, password) {
+  const hash = await hashPassword(password);
+  db.prepare('UPDATE resellers SET password_hash = ?, token_version = token_version + 1 WHERE id = ?').run(hash, id);
 }
 function setEnabled(id, enabled) {
   db.prepare('UPDATE resellers SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
@@ -80,13 +83,13 @@ function scriptsFor(resellerId) {
     .all(resellerId);
 }
 
-function verifyLogin(username, password) {
+async function verifyLogin(username, password) {
   const r = getByUsername(username);
   if (!r) {
-    verifyPassword(password, 'scrypt$00$00'); // constant-ish time
+    await verifyPassword(password, 'scrypt$00$00'); // constant-ish time
     return null;
   }
-  if (!verifyPassword(password, r.password_hash)) return null;
+  if (!(await verifyPassword(password, r.password_hash))) return null;
   return r;
 }
 

@@ -353,6 +353,42 @@ test('a report replayed on a spent nonce is dropped', async () => {
   assert.strictEqual(reasonsFor(script.id).length, 1, 'a replayed report was counted twice');
 });
 
+/* ------------------------------- sessions ------------------------------- */
+
+test('changing a password signs out the sessions that predate it', async () => {
+  const admins = require('../src/services/admins');
+  await admins.upsertAdmin('rotator', 'first-password');
+
+  const login = await post('/dashboard/api/login', { username: 'rotator', password: 'first-password' });
+  assert.strictEqual(login.status, 200, login.text);
+  const cookie = login.headers.getSetCookie().join('; ');
+
+  const withCookie = () => fetch(`${base}/api/v1/overview`, { headers: { cookie } });
+  assert.strictEqual((await withCookie()).status, 200, 'a fresh session should work');
+
+  // The cookie is untouched and its signature is still valid — only the
+  // account's token_version moved.
+  await admins.upsertAdmin('rotator', 'second-password');
+  assert.strictEqual((await withCookie()).status, 401, 'the old session survived a password change');
+});
+
+test('a session token minted without a version is refused', async () => {
+  const admins = require('../src/services/admins');
+  const { createToken } = require('../src/utils/session');
+  await admins.upsertAdmin('legacy', 'some-password');
+
+  // What the pre-versioning code produced: a correctly signed, unexpired token
+  // with no `tv` claim. It must not pass as version 0.
+  const token = createToken('legacy', { role: 'admin' });
+  const stripped = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
+  delete stripped.tv;
+  const part = Buffer.from(JSON.stringify(stripped)).toString('base64url');
+  const sig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(part).digest('base64url');
+
+  const res = await fetch(`${base}/api/v1/overview`, { headers: { cookie: `_2t1_sess=${part}.${sig}` } });
+  assert.strictEqual(res.status, 401);
+});
+
 /* -------------------------------- health -------------------------------- */
 
 test('health check reports the database is reachable', async () => {

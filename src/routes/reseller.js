@@ -7,11 +7,20 @@
 
 const express = require('express');
 const config = require('../config');
+const db = require('../db');
 const scripts = require('../services/scripts');
 const keys = require('../services/keys');
 const resellers = require('../services/resellers');
 
 const router = express.Router();
+
+/** Thrown inside the credit transaction to roll it back with a 402, not a 500. */
+class InsufficientCredits extends Error {
+  constructor(needed) {
+    super(`Not enough credits (need ${needed})`);
+    this.needed = needed;
+  }
+}
 
 function loaderSnippet(scriptId) {
   return `script_key = "YOUR_KEY_HERE";\nloadstring(game:HttpGet("${config.baseUrl}/loader/${scriptId}.lua"))()`;
@@ -56,16 +65,28 @@ router.post('/keys', (req, res) => {
   if (!scripts.getScript(scriptId)) return res.status(404).json({ success: false, message: 'Script not found' });
 
   const n = Math.max(1, Math.min(parseInt(count, 10) || 1, 1000));
-  // 1 credit per key.
-  if (!resellers.spendCredits(req.reseller.id, n)) {
-    return res.status(402).json({ success: false, message: `Not enough credits (need ${n})` });
+
+  // 1 credit per key. Debit and mint in ONE transaction: these used to be two,
+  // so any failure inside createKeys (a unique-collision retry giving up, a busy
+  // timeout, a full disk) left the reseller charged for keys they never got.
+  let created;
+  try {
+    created = db.transaction(() => {
+      if (!resellers.spendCredits(req.reseller.id, n)) throw new InsufficientCredits(n);
+      return keys.createKeys(scriptId, {
+        count: n,
+        expiresInDays: expiresInDays > 0 ? expiresInDays : null,
+        note: note || '',
+        resellerId: req.reseller.id,
+      });
+    })();
+  } catch (err) {
+    if (err instanceof InsufficientCredits) {
+      return res.status(402).json({ success: false, message: `Not enough credits (need ${n})` });
+    }
+    throw err;
   }
-  const created = keys.createKeys(scriptId, {
-    count: n,
-    expiresInDays: expiresInDays > 0 ? expiresInDays : null,
-    note: note || '',
-    resellerId: req.reseller.id,
-  });
+
   res.status(201).json({
     success: true,
     keys: created,

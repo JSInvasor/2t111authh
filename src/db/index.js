@@ -32,6 +32,11 @@ ensureColumn('scripts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('keys', 'reseller_id', 'INTEGER');
 db.exec('CREATE INDEX IF NOT EXISTS idx_keys_reseller ON keys(reseller_id)');
 
+// Bumped on every password change; session tokens carry the value they were
+// issued under, so changing a password invalidates the sessions that predate it.
+ensureColumn('admins', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('resellers', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
+
 // keyHash() of the key value — how a loader names its key on the wire without
 // sending it. Backfilled here so databases created before the mutual-auth
 // protocol keep working without a manual migration step.

@@ -13,19 +13,23 @@ router.get('/', (req, res) => {
   res.json({ success: true, resellers: resellers.list() });
 });
 
-router.post('/', (req, res) => {
-  const { username, password, credits } = req.body || {};
-  if (!username || !password) {
-    return res.status(400).json({ success: false, message: 'username and password are required' });
+router.post('/', async (req, res, next) => {
+  try {
+    const { username, password, credits } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'username and password are required' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ success: false, message: 'password must be at least 6 characters' });
+    }
+    if (resellers.getByUsername(String(username)) || admins.getAdmin(String(username))) {
+      return res.status(409).json({ success: false, message: 'That username is taken' });
+    }
+    const reseller = await resellers.create({ username: String(username), password: String(password), credits });
+    res.status(201).json({ success: true, reseller });
+  } catch (err) {
+    next(err);
   }
-  if (String(password).length < 6) {
-    return res.status(400).json({ success: false, message: 'password must be at least 6 characters' });
-  }
-  if (resellers.getByUsername(String(username)) || admins.getAdmin(String(username))) {
-    return res.status(409).json({ success: false, message: 'That username is taken' });
-  }
-  const reseller = resellers.create({ username: String(username), password: String(password), credits });
-  res.status(201).json({ success: true, reseller });
 });
 
 router.get('/:id', (req, res) => {
@@ -34,18 +38,22 @@ router.get('/:id', (req, res) => {
   res.json({ success: true, reseller, scripts: resellers.scriptsFor(reseller.id) });
 });
 
-router.patch('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (!resellers.getById(id)) return res.status(404).json({ success: false, message: 'Not found' });
-  const body = req.body || {};
-  if ('enabled' in body) resellers.setEnabled(id, body.enabled);
-  if (body.password) {
-    if (String(body.password).length < 6) {
-      return res.status(400).json({ success: false, message: 'password must be at least 6 characters' });
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!resellers.getById(id)) return res.status(404).json({ success: false, message: 'Not found' });
+    const body = req.body || {};
+    if ('enabled' in body) resellers.setEnabled(id, body.enabled);
+    if (body.password) {
+      if (String(body.password).length < 6) {
+        return res.status(400).json({ success: false, message: 'password must be at least 6 characters' });
+      }
+      await resellers.setPassword(id, String(body.password));
     }
-    resellers.setPassword(id, String(body.password));
+    res.json({ success: true, reseller: resellers.getById(id) });
+  } catch (err) {
+    next(err);
   }
-  res.json({ success: true, reseller: resellers.getById(id) });
 });
 
 router.post('/:id/credits', (req, res) => {

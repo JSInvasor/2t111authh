@@ -13,15 +13,15 @@ const resellers = require('../src/services/resellers');
 const scripts = require('../src/services/scripts');
 const keys = require('../src/services/keys');
 
-test('create + login', () => {
-  const r = resellers.create({ username: 'bob', password: 'secret123', credits: 5 });
+test('create + login', async () => {
+  const r = await resellers.create({ username: 'bob', password: 'secret123', credits: 5 });
   assert.strictEqual(r.credits, 5);
-  assert.ok(resellers.verifyLogin('bob', 'secret123'));
-  assert.strictEqual(resellers.verifyLogin('bob', 'wrong'), null);
+  assert.ok(await resellers.verifyLogin('bob', 'secret123'));
+  assert.strictEqual(await resellers.verifyLogin('bob', 'wrong'), null);
 });
 
-test('credits: add and spend atomically, never below 0', () => {
-  const r = resellers.create({ username: 'c1', password: 'secret123', credits: 3 });
+test('credits: add and spend atomically, never below 0', async () => {
+  const r = await resellers.create({ username: 'c1', password: 'secret123', credits: 3 });
   assert.ok(resellers.spendCredits(r.id, 2)); // 3 -> 1
   assert.strictEqual(resellers.getById(r.id).credits, 1);
   assert.ok(!resellers.spendCredits(r.id, 2)); // insufficient -> false, unchanged
@@ -32,8 +32,8 @@ test('credits: add and spend atomically, never below 0', () => {
   assert.strictEqual(resellers.getById(r.id).credits, 0);
 });
 
-test('script assignment scopes key creation and listing', () => {
-  const r = resellers.create({ username: 'c2', password: 'secret123', credits: 10 });
+test('script assignment scopes key creation and listing', async () => {
+  const r = await resellers.create({ username: 'c2', password: 'secret123', credits: 10 });
   const s = scripts.createScript({ name: 'S' });
   const s2 = scripts.createScript({ name: 'S2' });
 
@@ -49,15 +49,39 @@ test('script assignment scopes key creation and listing', () => {
   assert.strictEqual(keys.listKeysByReseller(r.id).length, 3); // only the reseller's own
 });
 
-test('assigned scripts never expose source', () => {
-  const r = resellers.create({ username: 'c3', password: 'secret123' });
+test('assigned scripts never expose source', async () => {
+  const r = await resellers.create({ username: 'c3', password: 'secret123' });
   const s = scripts.createScript({ name: 'Secret', source: 'print("SRC")' });
   resellers.assignScript(r.id, s.id);
   assert.ok(!('source' in resellers.scriptsFor(r.id)[0]));
 });
 
-test('removing a reseller detaches (keeps) its keys', () => {
-  const r = resellers.create({ username: 'c4', password: 'secret123' });
+test('a failed key mint refunds nothing because it never debits', async () => {
+  const db = require('../src/db');
+  const r = await resellers.create({ username: 'tx', password: 'secret123', credits: 10 });
+
+  // Debit and mint share one transaction, so a failure anywhere inside it rolls
+  // the credits back. Previously they were two statements and the reseller was
+  // charged for keys that were never created.
+  assert.throws(() => {
+    db.transaction(() => {
+      resellers.spendCredits(r.id, 4);
+      throw new Error('minting blew up');
+    })();
+  }, /minting blew up/);
+
+  assert.strictEqual(resellers.getById(r.id).credits, 10, 'credits were consumed by a failed mint');
+});
+
+test('changing a reseller password retires its sessions', async () => {
+  const r = await resellers.create({ username: 'rotate', password: 'secret123' });
+  const before = resellers.getByUsername('rotate').token_version;
+  await resellers.setPassword(r.id, 'new-secret123');
+  assert.strictEqual(resellers.getByUsername('rotate').token_version, before + 1);
+});
+
+test('removing a reseller detaches (keeps) its keys', async () => {
+  const r = await resellers.create({ username: 'c4', password: 'secret123' });
   const s = scripts.createScript({ name: 'S' });
   resellers.assignScript(r.id, s.id);
   const [k] = keys.createKeys(s.id, { count: 1, resellerId: r.id });

@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS admins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  token_version INTEGER NOT NULL DEFAULT 0  -- bumped on password change; invalidates old sessions
 );
 
 CREATE TABLE IF NOT EXISTS resellers (
@@ -67,7 +68,8 @@ CREATE TABLE IF NOT EXISTS resellers (
   password_hash TEXT NOT NULL,
   credits       INTEGER NOT NULL DEFAULT 0,   -- 1 credit = 1 generated key
   enabled       INTEGER NOT NULL DEFAULT 1,
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  token_version INTEGER NOT NULL DEFAULT 0    -- bumped on password change; invalidates old sessions
 );
 
 -- which scripts a reseller may sell keys for

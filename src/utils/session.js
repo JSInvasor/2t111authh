@@ -16,8 +16,13 @@ function sign(payloadPart) {
   return b64url(crypto.createHmac('sha256', config.sessionSecret).update(payloadPart).digest());
 }
 
-function createToken(username, { role = 'admin', rid = null, maxAgeMs = config.sessionMaxAgeMs } = {}) {
-  const payload = { u: username, role, exp: Date.now() + maxAgeMs };
+/**
+ * @param {{role?:string, rid?:number|null, tv?:number, maxAgeMs?:number}} [opts]
+ *   tv — the account's token_version at issue time. Checked against the database
+ *   on every request, so a password change retires the tokens that predate it.
+ */
+function createToken(username, { role = 'admin', rid = null, tv = 0, maxAgeMs = config.sessionMaxAgeMs } = {}) {
+  const payload = { u: username, role, tv, exp: Date.now() + maxAgeMs };
   if (rid != null) payload.rid = rid;
   const payloadPart = b64url(JSON.stringify(payload));
   return `${payloadPart}.${sign(payloadPart)}`;
