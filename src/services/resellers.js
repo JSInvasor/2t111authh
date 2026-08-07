@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const audit = require('./audit');
 const { hashPassword, verifyPassword } = require('../utils/password');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -10,11 +11,19 @@ const publicCols =
   '(SELECT COUNT(*) FROM reseller_scripts rs WHERE rs.reseller_id = resellers.id) AS scripts, ' +
   '(SELECT COUNT(*) FROM keys k WHERE k.reseller_id = resellers.id) AS keys';
 
-async function create({ username, password, credits = 0 }) {
+async function create({ username, password, credits = 0, actor = null }) {
   const hash = await hashPassword(password);
   const info = db
     .prepare('INSERT INTO resellers (username, password_hash, credits, created_at) VALUES (?, ?, ?, ?)')
     .run(username, hash, Math.max(0, parseInt(credits, 10) || 0), now());
+
+  audit.record({
+    actor,
+    action: 'reseller.create',
+    targetType: 'reseller',
+    targetId: info.lastInsertRowid,
+    detail: { username, credits: Math.max(0, parseInt(credits, 10) || 0) },
+  });
   return getById(info.lastInsertRowid);
 }
 
@@ -29,20 +38,36 @@ function list() {
 }
 
 /** Changing the password also retires every session token issued before it. */
-async function setPassword(id, password) {
+async function setPassword(id, password, { actor = null } = {}) {
   const hash = await hashPassword(password);
   db.prepare('UPDATE resellers SET password_hash = ?, token_version = token_version + 1 WHERE id = ?').run(hash, id);
+  audit.record({ actor, action: 'reseller.set_password', targetType: 'reseller', targetId: id });
 }
-function setEnabled(id, enabled) {
+function setEnabled(id, enabled, { actor = null } = {}) {
   db.prepare('UPDATE resellers SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+  audit.record({
+    actor,
+    action: enabled ? 'reseller.enable' : 'reseller.disable',
+    targetType: 'reseller',
+    targetId: id,
+  });
   return getById(id);
 }
 
 /** Add (or, with a negative amount, remove) credits. Never drops below 0. */
-function addCredits(id, amount) {
+function addCredits(id, amount, { actor = null } = {}) {
   const n = parseInt(amount, 10) || 0;
+  const before = getById(id);
   db.prepare('UPDATE resellers SET credits = MAX(0, credits + ?) WHERE id = ?').run(n, id);
-  return getById(id);
+  const after = getById(id);
+  audit.record({
+    actor,
+    action: 'reseller.credits',
+    targetType: 'reseller',
+    targetId: id,
+    detail: { amount: n, from: before ? before.credits : null, to: after ? after.credits : null },
+  });
+  return after;
 }
 
 /** Atomically spend credits. Returns true only if the balance was sufficient. */
@@ -52,19 +77,44 @@ function spendCredits(id, amount) {
   return info.changes > 0;
 }
 
-function remove(id) {
+function remove(id, { actor = null } = {}) {
+  const before = getById(id);
   // Detach the reseller's keys (keep the keys, just unlink), then delete.
   db.prepare('UPDATE keys SET reseller_id = NULL WHERE reseller_id = ?').run(id);
-  return db.prepare('DELETE FROM resellers WHERE id = ?').run(id).changes > 0;
+  const gone = db.prepare('DELETE FROM resellers WHERE id = ?').run(id).changes > 0;
+  if (gone) {
+    audit.record({
+      actor,
+      action: 'reseller.delete',
+      targetType: 'reseller',
+      targetId: id,
+      detail: { username: before ? before.username : null, keys_detached: before ? before.keys : null },
+    });
+  }
+  return gone;
 }
 
 // ---- script assignment ----
 
-function assignScript(resellerId, scriptId) {
+function assignScript(resellerId, scriptId, { actor = null } = {}) {
   db.prepare('INSERT OR IGNORE INTO reseller_scripts (reseller_id, script_id) VALUES (?, ?)').run(resellerId, scriptId);
+  audit.record({
+    actor,
+    action: 'reseller.assign_script',
+    targetType: 'reseller',
+    targetId: resellerId,
+    detail: { script_id: scriptId },
+  });
 }
-function unassignScript(resellerId, scriptId) {
+function unassignScript(resellerId, scriptId, { actor = null } = {}) {
   db.prepare('DELETE FROM reseller_scripts WHERE reseller_id = ? AND script_id = ?').run(resellerId, scriptId);
+  audit.record({
+    actor,
+    action: 'reseller.unassign_script',
+    targetType: 'reseller',
+    targetId: resellerId,
+    detail: { script_id: scriptId },
+  });
 }
 function hasScript(resellerId, scriptId) {
   return !!db

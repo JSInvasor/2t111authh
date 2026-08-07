@@ -217,6 +217,26 @@ POST /api/v1/heartbeat { lease, n, beat }     beat = HMAC(key, 2t1hb|lease|n)
   yakalanan bir beat iptal edilmiş bir oturumu ayakta tutamaz.
 - **Çok cihazlı satış** — `LEASE_MAX_PER_KEY` ile 1 key = N eşzamanlı oturum.
 
+### Denetim kaydı (audit log)
+
+Bu sistem **gerçek yetki devrediyor**: bir bayi key banlayabiliyor, HWID sıfırlayabiliyor,
+key silebiliyor; Discord bot da komutu çalıştıran kişi adına aynısını yapıyor. Hiçbiri iz
+bırakmıyordu. Yani "bayi key'imi sebepsiz banladı", "ben dokunmadım", "HWID'imi kim
+sıfırladı" sorularının **hiçbirinin cevabı yoktu** — ve yetkisini sessizce kötüye kullanan
+bir bayiyi fark etmenin de yolu yoktu.
+
+- Kayıt **servis katmanında** tutuluyor, route'ta değil — çünkü Discord bot servisleri
+  doğrudan çağırıyor, yani route'lar gerçek kısıtlama noktası değil.
+- Actor belirtmeden yapılan mutasyon `system` olarak düşüyor; bu da başlı başına
+  görülmeye değer bir sinyal.
+- **Append-only, konvansiyonla değil trigger'la**: `audit_log` üzerinde UPDATE/DELETE
+  veritabanı seviyesinde `RAISE(ABORT)` ile engelli. Suçlananın düzenleyebildiği bir
+  kayıt hiçbir soruya cevap vermez.
+- `GET /api/v1/audit` **sadece admin** — bir bayi, kendisini hesap verebilir kılan kaydı
+  okuyamamalı.
+- Silinen key'in değeri kayda yazılıyor: satır gittikten sonra "aldığım key'e ne oldu"
+  sorusuna cevap verebilen tek şey o.
+
 ### Risk skoru (ikili oto-ban yerine)
 
 Eskiden her otomatik ban **tek sinyal genişliğindeydi**: N HWID'i aş → ban. N IP'yi aş →
@@ -377,6 +397,7 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | Method   | Endpoint                                       | Açıklama                                                 |
 | -------- | ---------------------------------------------- | -------------------------------------------------------- |
 | `POST`   | `/api/v1/scripts`                              | Script oluştur `{ name, source?, version?, hwid_lock? }` |
+| `GET`    | `/api/v1/audit`                                | Denetim kaydı (`?target_type=key&target_id=…&limit=…`)   |
 | `GET`    | `/api/v1/scripts`                              | Tüm script'leri listele                                  |
 | `GET`    | `/api/v1/scripts/:id`                          | Script detayı + loader snippet                           |
 | `PATCH`  | `/api/v1/scripts/:id`                          | Güncelle (ör. yeni `source`)                             |

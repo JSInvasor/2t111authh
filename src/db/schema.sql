@@ -70,6 +70,38 @@ CREATE TABLE IF NOT EXISTS executions_daily (
   PRIMARY KEY (script_id, day)
 );
 
+-- Who did what to whom. Resellers can ban keys, reset HWIDs and delete keys, and
+-- until this existed none of it left a trace — so "a reseller banned my key for
+-- no reason" and "I didn't touch it" were both unanswerable, and a reseller
+-- quietly abusing their access was invisible.
+--
+-- Append-only, and enforced as such by triggers below rather than by convention:
+-- an audit log anyone can edit answers nothing. Rows are written once per human
+-- action, not per auth, so the table stays small.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_type  TEXT NOT NULL,              -- admin | reseller | bot | system
+  actor_id    TEXT,                       -- numeric id, discord id, or NULL
+  actor_name  TEXT,
+  action      TEXT NOT NULL,              -- key.ban, key.reset_hwid, reseller.credits, …
+  target_type TEXT,                       -- key | script | reseller
+  target_id   TEXT,
+  detail      TEXT,                       -- JSON: what changed
+  ip          TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_target  ON audit_log(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_actor   ON audit_log(actor_type, actor_id);
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+BEFORE UPDATE ON audit_log
+BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+BEFORE DELETE ON audit_log
+BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+
 CREATE TABLE IF NOT EXISTS admins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT NOT NULL UNIQUE,

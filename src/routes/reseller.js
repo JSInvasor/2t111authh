@@ -11,6 +11,7 @@ const db = require('../db');
 const scripts = require('../services/scripts');
 const keys = require('../services/keys');
 const resellers = require('../services/resellers');
+const audit = require('../services/audit');
 
 const router = express.Router();
 
@@ -78,6 +79,7 @@ router.post('/keys', (req, res) => {
         expiresInDays: expiresInDays > 0 ? expiresInDays : null,
         note: note || '',
         resellerId: req.reseller.id,
+        actor: audit.actorFromRequest(req),
       });
     })();
   } catch (err) {
@@ -102,7 +104,7 @@ router.patch('/keys/:id', (req, res) => {
   const fields = {};
   if ('status' in body && ['active', 'banned', 'paused'].includes(body.status)) fields.status = body.status;
   if ('note' in body) fields.note = body.note;
-  res.json({ success: true, key: keys.updateKey(key.id, fields) });
+  res.json({ success: true, key: keys.updateKey(key.id, fields, { actor: audit.actorFromRequest(req) }) });
 });
 
 for (const [path, status] of [
@@ -113,20 +115,20 @@ for (const [path, status] of [
   router.post(path, (req, res) => {
     const key = ownKey(req, res);
     if (!key) return;
-    res.json({ success: true, key: keys.updateKey(key.id, { status }) });
+    res.json({ success: true, key: keys.updateKey(key.id, { status }, { actor: audit.actorFromRequest(req) }) });
   });
 }
 
 router.post('/keys/:id/reset-hwid', (req, res) => {
   const key = ownKey(req, res);
   if (!key) return;
-  res.json({ success: true, key: keys.resetHwid(key.id) });
+  res.json({ success: true, key: keys.resetHwid(key.id, { actor: audit.actorFromRequest(req) }) });
 });
 
 router.delete('/keys/:id', (req, res) => {
   const key = ownKey(req, res);
   if (!key) return;
-  res.json({ success: keys.deleteKey(key.id) });
+  res.json({ success: keys.deleteKey(key.id, { actor: audit.actorFromRequest(req) }) });
 });
 
 module.exports = router;

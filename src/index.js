@@ -19,6 +19,7 @@ const resellersRouter = require('./routes/resellers');
 const resellerRouter = require('./routes/reseller');
 const { overview } = require('./services/stats');
 const retention = require('./services/retention');
+const audit = require('./services/audit');
 
 // Fail fast (in production) on an insecure/incomplete configuration.
 enforceConfig();
@@ -85,6 +86,18 @@ app.use(publicRouter);
 
 // Admin API (Bearer master key OR admin session cookie)
 app.get('/api/v1/overview', requireAdmin, (req, res) => res.json({ success: true, overview: overview() }));
+// Who did what. Admin-only: a reseller must not be able to read (or audit) the
+// trail that exists to hold them to account.
+app.get('/api/v1/audit', requireAdmin, (req, res) =>
+  res.json({
+    success: true,
+    entries: audit.list({
+      targetType: req.query.target_type || null,
+      targetId: req.query.target_id || null,
+      limit: req.query.limit,
+    }),
+  })
+);
 app.use('/api/v1/scripts', requireAdmin, jsonLarge, scriptsRouter); // script source can be large
 app.use('/api/v1/keys', requireAdmin, jsonSmall, keysRouter);
 app.use('/api/v1/resellers', requireAdmin, jsonSmall, resellersRouter);

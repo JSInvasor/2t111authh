@@ -2,6 +2,7 @@
 
 const express = require('express');
 const keys = require('../services/keys');
+const audit = require('../services/audit');
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ router.patch('/:id', (req, res) => {
   if ('status' in fields && !VALID_STATUS.has(fields.status)) {
     return res.status(400).json({ success: false, message: 'status must be active | banned | paused' });
   }
-  res.json({ success: true, key: keys.updateKey(id, fields) });
+  res.json({ success: true, key: keys.updateKey(id, fields, { actor: audit.actorFromRequest(req) }) });
 });
 
 // Convenience status shortcuts.
@@ -36,7 +37,7 @@ for (const [path, status] of [
   router.post(path, (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!keys.getKeyById(id)) return res.status(404).json({ success: false, message: 'Not found' });
-    res.json({ success: true, key: keys.updateKey(id, { status }) });
+    res.json({ success: true, key: keys.updateKey(id, { status }, { actor: audit.actorFromRequest(req) }) });
   });
 }
 
@@ -44,12 +45,12 @@ for (const [path, status] of [
 router.post('/:id/reset-hwid', (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!keys.getKeyById(id)) return res.status(404).json({ success: false, message: 'Not found' });
-  res.json({ success: true, key: keys.resetHwid(id) });
+  res.json({ success: true, key: keys.resetHwid(id, { actor: audit.actorFromRequest(req) }) });
 });
 
 router.delete('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  res.json({ success: keys.deleteKey(id) });
+  res.json({ success: keys.deleteKey(id, { actor: audit.actorFromRequest(req) }) });
 });
 
 module.exports = router;

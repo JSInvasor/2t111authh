@@ -3,6 +3,7 @@
 const db = require('../db');
 const config = require('../config');
 const lease = require('./lease');
+const audit = require('./audit');
 const { generateKey, keyHash } = require('../utils/crypto');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -15,7 +16,7 @@ const now = () => Math.floor(Date.now() / 1000);
  */
 function createKeys(
   scriptId,
-  { count = 1, expiresInDays = null, note = '', discordId = null, resellerId = null } = {}
+  { count = 1, expiresInDays = null, note = '', discordId = null, resellerId = null, actor = null } = {}
 ) {
   const insert = db.prepare(
     `INSERT INTO keys (value, kh, script_id, note, discord_id, expires_at, reseller_id, created_at)
@@ -43,6 +44,13 @@ function createKeys(
   });
   tx();
 
+  audit.record({
+    actor,
+    action: 'key.create',
+    targetType: 'script',
+    targetId: scriptId,
+    detail: { count: created.length, expires_in_days: expiresInDays, reseller_id: resellerId, note },
+  });
   return created.map(getKeyByValue);
 }
 
@@ -82,17 +90,21 @@ function listKeysByReseller(resellerId, { scriptId = null, limit = 1000, offset 
     .all(resellerId, limit, offset);
 }
 
-function updateKey(id, fields = {}) {
+function updateKey(id, fields = {}, { actor = null } = {}) {
   const allowed = ['status', 'note', 'discord_id', 'expires_at', 'hwid'];
   const sets = [];
   const vals = [];
+  const changed = {};
   for (const k of allowed) {
     if (k in fields) {
       sets.push(`${k} = ?`);
       vals.push(fields[k]);
+      changed[k] = fields[k];
     }
   }
   if (!sets.length) return getKeyById(id);
+
+  const before = getKeyById(id);
   vals.push(id);
   db.prepare(`UPDATE keys SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
 
@@ -100,14 +112,34 @@ function updateKey(id, fields = {}) {
   // only stopped the NEXT auth, and the copy already running carried on until
   // the user happened to close the game.
   if (fields.status && fields.status !== 'active') lease.revokeKey(id);
+
+  audit.record({
+    actor,
+    action: fields.status ? `key.${fields.status}` : 'key.update',
+    targetType: 'key',
+    targetId: id,
+    detail: { changed, from: before ? { status: before.status } : null },
+  });
   return getKeyById(id);
 }
 
 /** Clear the bound HWID so the key can be used on a new device (admin, unconditional). */
-function resetHwid(id) {
+function resetHwid(id, { actor = null } = {}) {
+  const before = getKeyById(id);
+  // The device token goes with it: leaving it behind would keep the key pinned
+  // to the old machine through the token even though the HWID was cleared.
   db.prepare(
-    'UPDATE keys SET hwid = NULL, hwid_reset_count = hwid_reset_count + 1, last_hwid_reset = ? WHERE id = ?'
+    `UPDATE keys SET hwid = NULL, device_token = NULL,
+            hwid_reset_count = hwid_reset_count + 1, last_hwid_reset = ? WHERE id = ?`
   ).run(now(), id);
+
+  audit.record({
+    actor,
+    action: 'key.reset_hwid',
+    targetType: 'key',
+    targetId: id,
+    detail: { from_hwid: before ? before.hwid : null },
+  });
   return getKeyById(id);
 }
 
@@ -122,7 +154,7 @@ function getKeyByDiscord(scriptId, discordId) {
  * User-initiated HWID reset, enforcing the script's cooldown + reset limit.
  * Returns { ok:true } or { ok:false, reason:'no_hwid'|'limit'|'cooldown', ... }.
  */
-function userResetHwid(key, script) {
+function userResetHwid(key, script, { actor = null } = {}) {
   const nowS = now();
   if (!key.hwid) return { ok: false, reason: 'no_hwid' };
   if (script.hwid_reset_limit >= 0 && key.hwid_reset_count >= script.hwid_reset_limit) {
@@ -131,13 +163,26 @@ function userResetHwid(key, script) {
   if (key.last_hwid_reset && key.last_hwid_reset + script.hwid_reset_cooldown > nowS) {
     return { ok: false, reason: 'cooldown', wait: key.last_hwid_reset + script.hwid_reset_cooldown - nowS };
   }
-  resetHwid(key.id);
+  resetHwid(key.id, { actor });
   return { ok: true };
 }
 
-function deleteKey(id) {
+function deleteKey(id, { actor = null } = {}) {
+  const before = getKeyById(id);
   lease.revokeKey(id);
-  return db.prepare('DELETE FROM keys WHERE id = ?').run(id).changes > 0;
+  const gone = db.prepare('DELETE FROM keys WHERE id = ?').run(id).changes > 0;
+  if (gone) {
+    // The key value is recorded because after the row is gone this entry is the
+    // only thing that can answer "what happened to the key I bought".
+    audit.record({
+      actor,
+      action: 'key.delete',
+      targetType: 'key',
+      targetId: id,
+      detail: { value: before ? before.value : null, script_id: before ? before.script_id : null },
+    });
+  }
+  return gone;
 }
 
 module.exports = {

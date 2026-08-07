@@ -12,6 +12,7 @@ const {
   updateKey,
   userResetHwid,
 } = require('../src/services/keys');
+const { actorFromDiscord } = require('../src/services/audit');
 const { BRAND, fmtDuration, isAdmin, hasWhitelist } = require('./util');
 const { log } = require('./log');
 
@@ -54,6 +55,7 @@ const getkey = {
         discordId: interaction.user.id,
         note: `discord:${interaction.user.tag}`,
         expiresInDays: botConfig.keyExpiresInDays,
+        actor: actorFromDiscord(interaction.user),
       });
       created = true;
     }
@@ -83,7 +85,7 @@ const resethwid = {
     const key = getKeyByDiscord(script.id, interaction.user.id);
     if (!key) return interaction.reply(ephem('❌ You don’t have a key yet. Use `/getkey` first.'));
 
-    const res = userResetHwid(key, script);
+    const res = userResetHwid(key, script, { actor: actorFromDiscord(interaction.user) });
     if (!res.ok) {
       if (res.reason === 'no_hwid') return interaction.reply(ephem('ℹ️ Your key has no HWID bound yet — nothing to reset.'));
       if (res.reason === 'limit') return interaction.reply(ephem(`❌ You’ve reached the HWID reset limit (${res.limit}). Please contact an admin.`));
@@ -137,7 +139,12 @@ const generate = {
     const count = interaction.options.getInteger('count');
     const days = interaction.options.getInteger('days') || 0;
     const note = interaction.options.getString('note') || '';
-    const keys = createKeys(script.id, { count, expiresInDays: days > 0 ? days : null, note });
+    const keys = createKeys(script.id, {
+      count,
+      expiresInDays: days > 0 ? days : null,
+      note,
+      actor: actorFromDiscord(interaction.user),
+    });
 
     const list = keys.map((k) => k.value).join('\n');
     const body = `✅ Generated **${keys.length}** key(s) for **${script.name}**:\n\`\`\`\n${list}\n\`\`\``;
@@ -181,7 +188,7 @@ function makeStatusCmd(name, description, status, verb) {
       if (!isAdmin(interaction)) return interaction.reply(ephem('❌ Admins only.'));
       const key = getKeyByValue(interaction.options.getString('key'));
       if (!key) return interaction.reply(ephem('❌ Key not found.'));
-      updateKey(key.id, { status });
+      updateKey(key.id, { status }, { actor: actorFromDiscord(interaction.user) });
       await interaction.reply(ephem(`✅ Key \`${key.value}\` ${verb}.`));
       log(`🛡️ **${interaction.user.tag}** ${verb} key \`${key.value}\`.`);
     },

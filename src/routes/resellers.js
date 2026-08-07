@@ -4,6 +4,7 @@
 
 const express = require('express');
 const resellers = require('../services/resellers');
+const audit = require('../services/audit');
 const admins = require('../services/admins');
 const scripts = require('../services/scripts');
 
@@ -25,7 +26,12 @@ router.post('/', async (req, res, next) => {
     if (resellers.getByUsername(String(username)) || admins.getAdmin(String(username))) {
       return res.status(409).json({ success: false, message: 'That username is taken' });
     }
-    const reseller = await resellers.create({ username: String(username), password: String(password), credits });
+    const reseller = await resellers.create({
+      username: String(username),
+      password: String(password),
+      credits,
+      actor: audit.actorFromRequest(req),
+    });
     res.status(201).json({ success: true, reseller });
   } catch (err) {
     next(err);
@@ -43,12 +49,12 @@ router.patch('/:id', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (!resellers.getById(id)) return res.status(404).json({ success: false, message: 'Not found' });
     const body = req.body || {};
-    if ('enabled' in body) resellers.setEnabled(id, body.enabled);
+    if ('enabled' in body) resellers.setEnabled(id, body.enabled, { actor: audit.actorFromRequest(req) });
     if (body.password) {
       if (String(body.password).length < 6) {
         return res.status(400).json({ success: false, message: 'password must be at least 6 characters' });
       }
-      await resellers.setPassword(id, String(body.password));
+      await resellers.setPassword(id, String(body.password), { actor: audit.actorFromRequest(req) });
     }
     res.json({ success: true, reseller: resellers.getById(id) });
   } catch (err) {
@@ -60,7 +66,7 @@ router.post('/:id/credits', (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!resellers.getById(id)) return res.status(404).json({ success: false, message: 'Not found' });
   const amount = parseInt((req.body || {}).amount, 10) || 0;
-  res.json({ success: true, reseller: resellers.addCredits(id, amount) });
+  res.json({ success: true, reseller: resellers.addCredits(id, amount, { actor: audit.actorFromRequest(req) }) });
 });
 
 router.post('/:id/scripts', (req, res) => {
@@ -68,18 +74,18 @@ router.post('/:id/scripts', (req, res) => {
   if (!resellers.getById(id)) return res.status(404).json({ success: false, message: 'Not found' });
   const scriptId = String((req.body || {}).script_id || '');
   if (!scripts.getScript(scriptId)) return res.status(404).json({ success: false, message: 'Script not found' });
-  resellers.assignScript(id, scriptId);
+  resellers.assignScript(id, scriptId, { actor: audit.actorFromRequest(req) });
   res.json({ success: true, scripts: resellers.scriptsFor(id) });
 });
 
 router.delete('/:id/scripts/:scriptId', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  resellers.unassignScript(id, req.params.scriptId);
+  resellers.unassignScript(id, req.params.scriptId, { actor: audit.actorFromRequest(req) });
   res.json({ success: true, scripts: resellers.scriptsFor(id) });
 });
 
 router.delete('/:id', (req, res) => {
-  res.json({ success: resellers.remove(parseInt(req.params.id, 10)) });
+  res.json({ success: resellers.remove(parseInt(req.params.id, 10), { actor: audit.actorFromRequest(req) }) });
 });
 
 module.exports = router;
