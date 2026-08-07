@@ -42,8 +42,19 @@ function safeEqual(a, b) {
  * (lua/loader_template.lua + lua/sha256.lua). Change one side and you must
  * change the other, or every auth will fail its proof check.
  *
- * Fields are joined with "|", which is safe because every component is
- * normalised to a charset that excludes it (see services/auth.js).
+ * Fields are length-prefixed rather than joined with a separator. The old
+ * scheme joined on "|" and leaned on a comment claiming every component was
+ * normalised to a charset that excluded it — which had quietly stopped being
+ * true: the route only checks LENGTH before hashing, and the charset
+ * normalisation (cleanExecutor, HWID_RE) happens inside authenticate(), after
+ * the proof has already been computed. So hwid="A|B", executor="C" hashed
+ * identically to hwid="A", executor="B|C".
+ *
+ * That was not exploitable — producing any valid proof needs the key, and the
+ * nonce is single-use so a captured one cannot be re-split — but it was one
+ * added field away from mattering, and it made the security argument depend on
+ * an invariant nothing enforced. Length prefixes make the parse unambiguous
+ * whatever a field contains, so there is no invariant left to get wrong.
  *
  * The protocol is mutually authenticated and anchored on the license key —
  * the one secret a genuine client and this server already share. The key
@@ -61,14 +72,33 @@ function safeEqual(a, b) {
  * no key, nonce or proof of any kind (see test/attacker.test.js).
  */
 
-function joinFields(parts) {
-  return parts.map((p) => (p == null ? '' : String(p))).join('|');
+/**
+ * Unambiguous encoding of a field list: each field prefixed with its BYTE
+ * length. Mirrored by `frame()` in lua/sha256.lua — Lua's `#s` is a byte count,
+ * so Buffer.byteLength is what has to match it, not String.length (which counts
+ * UTF-16 units and would disagree on any multi-byte character).
+ *
+ * The first field is always a domain tag, so a proof built for one purpose can
+ * never be replayed as another.
+ */
+function frame(parts) {
+  return parts
+    .map((p) => {
+      const s = p == null ? '' : String(p);
+      return `${Buffer.byteLength(s, 'utf8')}:${s}`;
+    })
+    .join('');
 }
 
 /**
  * Public, irreversible identifier for a key. This is what goes on the wire in
  * place of the key, so a hostile or compromised endpoint learns nothing reusable
  * — a key carries ~160 bits of entropy, so the hash cannot be walked back.
+ *
+ * Deliberately NOT converted to the framed encoding: this value is stored in the
+ * keys.kh column, so changing how it is computed would orphan every existing row
+ * and every auth would fail. It is unambiguous anyway — one field, and the key's
+ * alphabet cannot contain the separator.
  */
 function keyHash(key) {
   return crypto.createHash('sha256').update('2t1kh|' + String(key)).digest('hex');
@@ -82,7 +112,7 @@ function keyHash(key) {
 function serverProof({ key, nonce, salt, scriptId }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1srv|' + joinFields([nonce, salt, scriptId]))
+    .update(frame(['2t1srv', nonce, salt, scriptId]))
     .digest('hex');
 }
 
@@ -103,7 +133,7 @@ function decoyServerProof(kh) {
 function clientProof({ key, nonce, scriptId, hwid, executor, device = '', env = '' }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1cli|' + joinFields([nonce, scriptId, hwid, executor, device, env]))
+    .update(frame(['2t1cli', nonce, scriptId, hwid, executor, device, env]))
     .digest('hex');
 }
 
@@ -115,7 +145,7 @@ function clientProof({ key, nonce, scriptId, hwid, executor, device = '', env = 
 function reportProof({ key, nonce, scriptId, reason }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1rep|' + joinFields([nonce, scriptId, reason]))
+    .update(frame(['2t1rep', nonce, scriptId, reason]))
     .digest('hex');
 }
 
@@ -127,7 +157,7 @@ function reportProof({ key, nonce, scriptId, reason }) {
 function beatProof({ key, lease, n }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1hb|' + joinFields([lease, n]))
+    .update(frame(['2t1hb', lease, n]))
     .digest('hex');
 }
 
@@ -135,13 +165,12 @@ function beatProof({ key, lease, n }) {
  * Signature over the auth response. Covers `enc` and the lease as well as the
  * payload, so a response cannot be downgraded from session-encrypted to
  * plaintext, cannot be stripped of its lease to dodge revocation, and cannot be
- * swapped or edited in flight. `script` stays last because it is the only field
- * whose contents are unconstrained.
+ * swapped or edited in flight.
  */
 function responseProof({ key, nonce, enc, lease, script }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1res|' + joinFields([nonce, enc || '', lease || '', script]))
+    .update(frame(['2t1res', nonce, enc || '', lease || '', script]))
     .digest('hex');
 }
 
@@ -154,7 +183,7 @@ function responseProof({ key, nonce, enc, lease, script }) {
 function sessionKey({ salt, nonce, scriptId, key, hwid }) {
   return crypto
     .createHash('sha256')
-    .update(joinFields([salt, nonce, scriptId, key, hwid]))
+    .update(frame(['2t1sk', salt, nonce, scriptId, key, hwid]))
     .digest();
 }
 
@@ -171,4 +200,5 @@ module.exports = {
   beatProof,
   responseProof,
   sessionKey,
+  _frame: frame,
 };

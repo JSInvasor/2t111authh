@@ -37,7 +37,8 @@ function luaState(prelude) {
   const src = `${prelude}\n${SHA256_LUA}
 function SH(s) return sha256hex(s) end
 function RAW(s) return sha256raw(s) end
-function HM(k, m) return hmac256hex(k, m) end`;
+function HM(k, m) return hmac256hex(k, m) end
+function FR(...) return frame({...}) end`;
   if (lauxlib.luaL_dostring(L, to_luastring(src)) !== lua.LUA_OK) {
     throw new Error('lua: ' + lua.lua_tojsstring(L, -1));
   }
@@ -111,6 +112,29 @@ test('sha256raw returns the 32 raw digest bytes', { skip }, () => {
   assert.ok(raw.equals(crypto.createHash('sha256').update('session-key-material').digest()));
 });
 
+test('both sides frame a field list into the same bytes', { skip }, () => {
+  const { _frame } = require('../src/utils/crypto');
+  const L = luaState('bit32 = nil');
+  const same = (...parts) =>
+    assert.strictEqual(call(L, 'FR', ...parts).toString(), _frame(parts), JSON.stringify(parts));
+
+  same('2t1cli', 'nonce', 'script');
+  same('', '', ''); // empty fields still carry their length
+  same('a', 'bb', 'ccc');
+
+  // The case the separator scheme could not tell apart: the "|" has to land
+  // inside one field, not act as a boundary.
+  assert.notStrictEqual(_frame(['A|B', 'C']), _frame(['A', 'B|C']));
+  same('A|B', 'C');
+  same('A', 'B|C');
+
+  // Multi-byte input: Lua counts bytes, so the server must too. A character
+  // count here would silently desync the two implementations.
+  same('kullanıcı', 'çalıştırıcı');
+  same('日本語', '🎮');
+  assert.strictEqual(_frame(['é']), '2:é', 'framing used a character count, not a byte count');
+});
+
 test('the loader hashes exactly the fields the server does', { skip }, () => {
   // Guards against the two sides drifting apart: same joined message, same key.
   // Every derivation in the protocol is pinned here — if any one of them drifts,
@@ -123,6 +147,7 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
     beatProof,
     responseProof,
     sessionKey,
+    _frame,
   } = require('../src/utils/crypto');
   const L = luaState('bit32 = nil');
   const f = {
@@ -139,27 +164,20 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
   assert.strictEqual(hex('SH', '2t1kh|' + f.key), keyHash(f.key));
 
   // server_proof — the loader verifies this before revealing anything.
-  assert.strictEqual(
-    hex('HM', f.key, '2t1srv|' + [f.nonce, f.salt, f.scriptId].join('|')),
-    serverProof(f)
-  );
+  assert.strictEqual(hex('HM', f.key, _frame(['2t1srv', f.nonce, f.salt, f.scriptId])), serverProof(f));
 
   // client proof — sent with /auth, covering the device token and environment
   // fingerprint so neither can be rewritten in flight.
   const extra = { device: 'a1b2c3d4e5f60718', env: 'ff00ff00ff00ff00' };
   assert.strictEqual(
-    hex(
-      'HM',
-      f.key,
-      '2t1cli|' + [f.nonce, f.scriptId, f.hwid, f.executor, extra.device, extra.env].join('|')
-    ),
+    hex('HM', f.key, _frame(['2t1cli', f.nonce, f.scriptId, f.hwid, f.executor, extra.device, extra.env])),
     clientProof({ ...f, ...extra })
   );
 
   // report proof — sent with /report.
   const reason = 'hook:http';
   assert.strictEqual(
-    hex('HM', f.key, '2t1rep|' + [f.nonce, f.scriptId, reason].join('|')),
+    hex('HM', f.key, _frame(['2t1rep', f.nonce, f.scriptId, reason])),
     reportProof({ ...f, reason })
   );
 
@@ -167,14 +185,14 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
   const script = 'return 42';
   const lease = 'LEASE-abc';
   assert.strictEqual(
-    hex('HM', f.key, '2t1res|' + [f.nonce, 'session', lease, script].join('|')),
+    hex('HM', f.key, _frame(['2t1res', f.nonce, 'session', lease, script])),
     responseProof({ ...f, enc: 'session', lease, script })
   );
 
   // heartbeat — one beat against a live lease.
-  assert.strictEqual(hex('HM', f.key, '2t1hb|' + [lease, 3].join('|')), beatProof({ ...f, lease, n: 3 }));
+  assert.strictEqual(hex('HM', f.key, _frame(['2t1hb', lease, 3])), beatProof({ ...f, lease, n: 3 }));
 
   // session key — the cipher key both sides derive independently.
-  const luaKey = call(L, 'RAW', [f.salt, f.nonce, f.scriptId, f.key, f.hwid].join('|'));
+  const luaKey = call(L, 'RAW', _frame(['2t1sk', f.salt, f.nonce, f.scriptId, f.key, f.hwid]));
   assert.ok(luaKey.equals(sessionKey(f)));
 });

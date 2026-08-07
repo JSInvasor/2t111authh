@@ -9,17 +9,24 @@
 
     Flow (mutually authenticated, anchored on the license key):
         handshake    -> we send SHA256("2t1kh|"..key); never the key itself
-        server_proof -> HMAC(key, "2t1srv|"..nonce|salt|script)
+        server_proof -> HMAC(key, frame{"2t1srv", nonce, salt, script})
                         verified HERE, before we send anything else. Only the
                         real server knows the key, so an endpoint that merely
                         answers this URL cannot get past this line.
-        proof        -> HMAC(key, "2t1cli|"..nonce|script|hwid|executor)
-        auth         -> encrypted payload, keyed by SHA256(salt|nonce|script|key|hwid)
-        resp_proof   -> HMAC(key, "2t1res|"..nonce|enc|script)
+        proof        -> HMAC(key, frame{"2t1cli", nonce, script, hwid, executor,
+                                        device, env})
+        auth         -> encrypted payload, keyed by
+                        SHA256(frame{"2t1sk", salt, nonce, script, key, hwid})
+        resp_proof   -> HMAC(key, frame{"2t1res", nonce, enc, lease, script})
                         covers `enc`, so the response cannot be downgraded from
                         session-encrypted to plaintext in flight.
     The key never travels, and the payload never carries its own cipher key, so
     a captured exchange is inert outside the session that requested it.
+
+    `frame` (see the inlined sha256 block) length-prefixes every field, so the
+    hashed message parses unambiguously no matter what a field contains. The
+    first field is always a domain tag, so a proof built for one step can never
+    be replayed as another.
 ]==]
 
 local API_URL   = "{{API_URL}}"
@@ -127,7 +134,7 @@ local function verifyHandshake(hs)
     local n, s = tostring(hs.nonce), tostring(hs.salt or "")
     local expect = ""
     pcall(function()
-        expect = hmac256hex(key, "2t1srv|" .. table.concat({ n, s, SCRIPT_ID }, "|"))
+        expect = hmac256hex(key, frame({ "2t1srv", n, s, SCRIPT_ID }))
     end)
     if #expect == 0 or tostring(hs.server_proof or "") ~= expect then return nil end
     return n, s
@@ -149,7 +156,7 @@ local function report(reason)
             script_id = SCRIPT_ID,
             kh = kh,
             nonce = n,
-            proof = hmac256hex(key, "2t1rep|" .. table.concat({ n, SCRIPT_ID, tostring(reason) }, "|")),
+            proof = hmac256hex(key, frame({ "2t1rep", n, SCRIPT_ID, tostring(reason) })),
             executor = executor,
             hwid = hwid,
             reason = reason,
@@ -247,10 +254,7 @@ end
 --    editing any field of it invalidates the proof.
 local proof = ""
 pcall(function()
-    proof = hmac256hex(
-        key,
-        "2t1cli|" .. table.concat({ nonce, SCRIPT_ID, hwid, executor, deviceToken, envFp }, "|")
-    )
+    proof = hmac256hex(key, frame({ "2t1cli", nonce, SCRIPT_ID, hwid, executor, deviceToken, envFp }))
 end)
 
 local data = post(API_URL .. "/api/v1/auth", {
@@ -280,7 +284,7 @@ local enc = tostring(data.enc or "")
 local leaseId = tostring(data.lease or "")
 local respExpect = ""
 pcall(function()
-    respExpect = hmac256hex(key, "2t1res|" .. table.concat({ nonce, enc, leaseId, data.script }, "|"))
+    respExpect = hmac256hex(key, frame({ "2t1res", nonce, enc, leaseId, data.script }))
 end)
 if #respExpect == 0 or tostring(data.resp_proof or "") ~= respExpect then
     return bail("resp_proof", "payload verification failed — refusing to run it.")
@@ -313,7 +317,7 @@ if #leaseId > 0 then
             n = n + 1
             local beat
             local ok = pcall(function()
-                beat = hmac256hex(key, "2t1hb|" .. leaseId .. "|" .. tostring(n))
+                beat = hmac256hex(key, frame({ "2t1hb", leaseId, tostring(n) }))
             end)
             if not ok then return end
 
@@ -343,7 +347,7 @@ end
 if enc == "session" then
     local sessionKey
     local ok = pcall(function()
-        sessionKey = sha256raw(table.concat({ salt, nonce, SCRIPT_ID, key, hwid }, "|"))
+        sessionKey = sha256raw(frame({ "2t1sk", salt, nonce, SCRIPT_ID, key, hwid }))
     end)
     if not ok or type(sessionKey) ~= "string" then
         return warn("[2t1auth] could not derive session key.")

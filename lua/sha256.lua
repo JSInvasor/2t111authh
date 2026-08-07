@@ -166,3 +166,23 @@ do
         return sha256hex(table.concat(outer) .. sha256raw(table.concat(inner) .. msg))
     end
 end
+
+-- Unambiguous encoding of a field list for the proofs: each field prefixed with
+-- its byte length. Mirrors frame() in src/utils/crypto.js.
+--
+-- The proofs used to join fields with "|" and rely on every field being
+-- normalised to a charset that excluded it. That stopped being true on the
+-- server side, and a separator scheme is only ever as good as the invariant
+-- nobody is checking. Length prefixes parse unambiguously whatever a field
+-- contains, so there is no invariant left to break.
+--
+-- `#s` is a BYTE count in Lua, which is what the server's Buffer.byteLength
+-- matches — a character count would disagree on any multi-byte input.
+local function frame(t)
+    local out = {}
+    for i = 1, #t do
+        local s = tostring(t[i] or "")
+        out[i] = #s .. ":" .. s
+    end
+    return table.concat(out)
+end

@@ -158,6 +158,42 @@ test('a forged server_proof stops the loader before it sends anything', { skip }
   );
 });
 
+/* --------------------------- proof field boundaries --------------------------- */
+
+test('shifting a field boundary changes the proof', () => {
+  // The proofs used to join fields with "|" and rely on a comment claiming no
+  // field could contain one. That had stopped being true — the route only checks
+  // LENGTH before hashing, and the charset normalisation happens inside
+  // authenticate(), after the proof is computed. So these two requests hashed
+  // identically, and any field added after them would have made that reachable.
+  const { clientProof, reportProof, responseProof } = require('../src/utils/crypto');
+  const base = { key: 'K', nonce: 'N', scriptId: 'S' };
+
+  assert.notStrictEqual(
+    clientProof({ ...base, hwid: 'A|B', executor: 'C' }),
+    clientProof({ ...base, hwid: 'A', executor: 'B|C' })
+  );
+  assert.notStrictEqual(
+    clientProof({ ...base, hwid: 'A', executor: 'B', device: 'C|D', env: 'E' }),
+    clientProof({ ...base, hwid: 'A', executor: 'B', device: 'C', env: 'D|E' })
+  );
+  assert.notStrictEqual(
+    responseProof({ ...base, enc: 'session', lease: 'L|X', script: 'Y' }),
+    responseProof({ ...base, enc: 'session', lease: 'L', script: 'X|Y' })
+  );
+  // An empty field is still a field, not an absent one.
+  assert.notStrictEqual(reportProof({ ...base, reason: '' }), reportProof({ ...base, scriptId: 'S', reason: 'S' }));
+});
+
+test('a proof from one step cannot be replayed as another', () => {
+  // Every framed message opens with a domain tag, so identical field values in
+  // two different steps still hash differently.
+  const { clientProof, reportProof, beatProof, serverProof } = require('../src/utils/crypto');
+  const args = { key: 'K', nonce: 'X', scriptId: 'X', salt: 'X', hwid: 'X', executor: 'X', lease: 'X', n: 'X', reason: 'X' };
+  const proofs = [serverProof(args), clientProof(args), reportProof(args), beatProof(args)];
+  assert.strictEqual(new Set(proofs).size, proofs.length, 'two protocol steps produced the same proof');
+});
+
 /* ------------------------------ replay & reuse ------------------------------ */
 
 test('a captured exchange replayed verbatim yields nothing', { skip }, () => {
