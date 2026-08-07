@@ -348,6 +348,7 @@ Test dosyaları:
 
 | Dosya                                                                    | Kapsam                                                                                              |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `attacker.test.js`                                                       | **Saldırgan paketi** — her test bir saldırıyı oynar ve sistemin reddettiğini doğrular: düşman uç nokta, düz metne düşürme, imza soyma, tek byte çevirme, payload takası, replay, oturumlar arası taşıma |
 | `api.test.js`                                                            | Gerçek Express uygulaması üzerinden HTTP: loader teslimi, handshake→proof→auth, replay reddi, rapor |
 | `loader.test.js`                                                         | Gerçek loader bootstrap'ı bir Lua VM'de uçtan uca çalışır (anti-hook dahil)                         |
 | `sha256.test.js`                                                         | Saf Lua SHA-256/HMAC ↔ Node `crypto` (her iki bit-op yolu)                                          |
