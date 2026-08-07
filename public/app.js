@@ -333,7 +333,8 @@ function showApp(me) {
   } else {
     nav.innerHTML =
       `<a href="#/" class="nav-item" data-nav="dashboard">${icon('layout-dashboard')} Dashboard</a>` +
-      `<a href="#/resellers" class="nav-item" data-nav="resellers">${icon('users')} Resellers</a>`;
+      `<a href="#/resellers" class="nav-item" data-nav="resellers">${icon('users')} Resellers</a>` +
+      `<a href="#/admins" class="nav-item" data-nav="admins">${icon('shield-check')} Admins</a>`;
   }
 }
 
@@ -380,6 +381,7 @@ function route() {
   let m;
   if ((m = hash.match(/^#\/resellers\/(\d+)/))) return renderResellerDetail(m[1]);
   if (hash.startsWith('#/resellers')) return renderResellers();
+  if (hash.startsWith('#/admins')) return renderAdmins();
   if ((m = hash.match(/^#\/s\/([\w-]+)/))) return renderScriptDetail(m[1]);
   return renderScriptsList();
 }
@@ -1001,6 +1003,140 @@ async function resellerDoGen() {
   } catch (err) { toast(err.message, 'err'); }
 }
 
+/* ===================== admins (owner) ===================== */
+
+async function renderAdmins() {
+  setActiveNav('admins');
+  state.refresh = renderAdmins;
+  view().innerHTML = skeleton();
+
+  let admins, you;
+  try { ({ admins, you } = await api('/api/v1/admins')); }
+  catch (e) { view().innerHTML = errorState(e.message); return; }
+
+  state.isOwner = you.is_owner;
+
+  const rows = admins.map((a) => {
+    const self = a.username === you.username;
+    // Only render what this caller can actually do — offering a button that
+    // answers 403 is worse than not offering it.
+    const actions = [
+      (you.is_owner || self)
+        ? `<button class="icon-btn" title="Change password" data-action="admin-password" data-id="${a.id}" data-name="${esc(a.username)}" data-self="${self ? 1 : 0}">${icon('lock-keyhole')}</button>`
+        : '',
+      (you.is_owner && !a.is_owner && !self)
+        ? `<button class="icon-btn" title="Make owner" data-action="admin-transfer" data-id="${a.id}" data-name="${esc(a.username)}">${icon('shield-check')}</button>`
+        : '',
+      (you.is_owner && !a.is_owner && !self)
+        ? `<button class="icon-btn danger" title="Delete" data-action="admin-delete" data-id="${a.id}" data-name="${esc(a.username)}">${icon('trash')}</button>`
+        : '',
+    ].join('');
+
+    return `
+      <tr>
+        <td><b>${esc(a.username)}</b>${self ? ' <span class="muted">(you)</span>' : ''}</td>
+        <td>${a.is_owner
+          ? `<span class="pill pill-active">${icon('shield-check')} owner</span>`
+          : `<span class="pill">${icon('user')} admin</span>`}</td>
+        <td>${fmtDate(a.created_at)}</td>
+        <td class="row-actions">${actions}</td>
+      </tr>`;
+  }).join('');
+
+  view().innerHTML = `
+    <div class="page-head">
+      <div>
+        <h1>Admins</h1>
+        <p class="muted">Accounts with full access to every script, key and reseller</p>
+      </div>
+      ${you.is_owner ? `<button class="btn btn-primary" data-action="new-admin">${icon('user-plus')} New admin</button>` : ''}
+    </div>
+
+    <div class="panel"><div class="table-wrap"><table>
+      <thead><tr><th>Username</th><th>Role</th><th>Created</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>
+
+    <div class="panel" style="margin-top:16px;padding:16px">
+      <p class="muted" style="margin:0">
+        ${icon('circle-alert')}
+        An admin can read and change everything, including script source. Only the
+        <b>owner</b> can add or remove admins${you.is_owner ? '' : ' — you are not the owner, so those controls are hidden'}.
+        Hand the role over with <b>Make owner</b> before retiring the owner account; it cannot be deleted while it holds the role.
+        To delegate key sales without any of this, use <a href="#/resellers">Resellers</a> instead.
+      </p>
+    </div>
+  `;
+}
+
+function openNewAdminModal() {
+  openModal('New admin',
+    `<div><label for="naUser">Username</label><input id="naUser" placeholder="teammate" autocapitalize="none" spellcheck="false" /></div>
+     <div><label for="naPass">Password</label><input id="naPass" type="password" placeholder="min. 8 characters" /></div>
+     <p class="muted" style="margin:12px 0 0">This account will have full access to every script, key and reseller. It will not be able to add or remove admins.</p>`,
+    `<button class="btn" data-action="modal-close">Cancel</button>
+     <button class="btn btn-primary" data-action="create-admin">${icon('user-plus')} Create</button>`);
+}
+
+async function createAdmin() {
+  const username = $('#naUser').value.trim();
+  const password = $('#naPass').value;
+  if (!username || !password) { toast('Username and password are required', 'err'); return; }
+  try {
+    await api('/api/v1/admins', { method: 'POST', body: { username, password } });
+    closeModal(); toast(`Admin "${username}" created`, 'ok');
+    renderAdmins();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+function openAdminPasswordModal(id, name, self) {
+  openModal(`Change password — ${name}`,
+    // Changing your own password takes the current one: a hijacked session must
+    // not be able to lock the real account holder out of their own account.
+    (self ? `<div><label for="apCur">Current password</label><input id="apCur" type="password" /></div>` : '') +
+    `<div><label for="apNew">New password</label><input id="apNew" type="password" placeholder="min. 8 characters" /></div>
+     <p class="muted" style="margin:12px 0 0">This signs ${self ? 'you' : 'them'} out everywhere — existing sessions stop working immediately.</p>`,
+    `<button class="btn" data-action="modal-close">Cancel</button>
+     <button class="btn btn-primary" data-action="save-admin-password" data-id="${id}" data-self="${self ? 1 : 0}">${icon('lock-keyhole')} Change</button>`);
+}
+
+async function saveAdminPassword(id, self) {
+  const password = $('#apNew').value;
+  const body = { password };
+  if (self) body.current_password = $('#apCur').value;
+  if (!password) { toast('New password is required', 'err'); return; }
+  try {
+    await api(`/api/v1/admins/${id}`, { method: 'PATCH', body });
+    closeModal();
+    if (self) {
+      // Our own cookie was just invalidated; go back to the login screen rather
+      // than leaving a shell whose every request will 401.
+      toast('Password changed — please sign in again', 'ok');
+      setTimeout(() => location.reload(), 900);
+    } else {
+      toast('Password changed', 'ok');
+      renderAdmins();
+    }
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function deleteAdmin(id, name) {
+  if (!confirm(`Delete admin "${name}"? They are signed out immediately and lose all access.`)) return;
+  try {
+    await api(`/api/v1/admins/${id}`, { method: 'DELETE' });
+    toast('Admin deleted', 'ok');
+    renderAdmins();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function transferOwnership(id, name) {
+  if (!confirm(`Make "${name}" the owner?\n\nThey gain the ability to add and remove admins, and you lose it. Only they can hand it back.`)) return;
+  try {
+    await api(`/api/v1/admins/${id}/transfer-ownership`, { method: 'POST' });
+    toast(`${name} is now the owner`, 'ok');
+    renderAdmins();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
 /* ===================== global click delegation ===================== */
 
 document.addEventListener('click', (e) => {
@@ -1031,6 +1167,13 @@ document.addEventListener('click', (e) => {
           .catch((err) => toast(err.message, 'err'));
       }
       break;
+    // admins (owner)
+    case 'new-admin': openNewAdminModal(); break;
+    case 'create-admin': createAdmin(); break;
+    case 'admin-password': openAdminPasswordModal(t.dataset.id, t.dataset.name, t.dataset.self === '1'); break;
+    case 'save-admin-password': saveAdminPassword(t.dataset.id, t.dataset.self === '1'); break;
+    case 'admin-delete': deleteAdmin(t.dataset.id, t.dataset.name); break;
+    case 'admin-transfer': transferOwnership(t.dataset.id, t.dataset.name); break;
     // resellers (admin)
     case 'new-reseller': openNewResellerModal(); break;
     case 'create-reseller': createReseller(); break;

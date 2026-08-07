@@ -16,6 +16,7 @@ const dashboardRouter = require('./routes/dashboard');
 const scriptsRouter = require('./routes/scripts');
 const keysRouter = require('./routes/keys');
 const resellersRouter = require('./routes/resellers');
+const adminsRouter = require('./routes/admins');
 const resellerRouter = require('./routes/reseller');
 const { overview } = require('./services/stats');
 const retention = require('./services/retention');
@@ -106,6 +107,10 @@ app.get('/api/v1/audit', requireAdmin, (req, res) =>
 app.use('/api/v1/scripts', requireAdmin, jsonLarge, scriptsRouter); // script source can be large
 app.use('/api/v1/keys', requireAdmin, jsonSmall, keysRouter);
 app.use('/api/v1/resellers', requireAdmin, jsonSmall, resellersRouter);
+// Admin accounts. Mounted behind requireAdmin; the routes that change anything
+// check ownership themselves, since changing your OWN password is open to every
+// admin while everything else is owner-only.
+app.use('/api/v1/admins', requireAdmin, jsonSmall, adminsRouter);
 
 // Reseller-scoped API (reseller session cookie)
 app.use('/api/v1/reseller', requireReseller, jsonSmall, resellerRouter);

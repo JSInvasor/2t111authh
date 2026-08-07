@@ -37,6 +37,19 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_keys_reseller ON keys(reseller_id)');
 ensureColumn('admins', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('resellers', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
 
+// Exactly one admin owns the install and may manage the others. On a database
+// that predates the flag, the oldest admin gets it — that is the account the
+// operator set up first, and leaving nobody as owner would mean nobody could
+// ever create an admin from the dashboard.
+ensureColumn('admins', 'is_owner', 'INTEGER NOT NULL DEFAULT 0');
+{
+  const hasOwner = db.prepare('SELECT COUNT(*) AS n FROM admins WHERE is_owner = 1').get().n;
+  if (!hasOwner) {
+    const first = db.prepare('SELECT id FROM admins ORDER BY id LIMIT 1').get();
+    if (first) db.prepare('UPDATE admins SET is_owner = 1 WHERE id = ?').run(first.id);
+  }
+}
+
 // Device identity beyond the executor's client id, which has public spoofers.
 // device_token is a random value the loader persists to the executor's own
 // filesystem: it survives a spoofed client id and a reinstall of the game, and

@@ -14,14 +14,21 @@ if (!username || !password) {
   console.error('Usage: node scripts/create-admin.js <username> <password>');
   process.exit(1);
 }
-if (String(password).length < 6) {
-  console.error('Password must be at least 6 characters.');
+// Matches the minimum the dashboard enforces, so the two paths can't disagree
+// about what counts as an acceptable password.
+if (String(password).length < 8) {
+  console.error('Password must be at least 8 characters.');
   process.exit(1);
 }
 
 admins
   .upsertAdmin(String(username), String(password))
-  .then(() => console.log(`Admin "${username}" created/updated. Log in at /dashboard`))
+  .then((admin) => {
+    console.log(`Admin "${username}" created/updated. Log in at /dashboard`);
+    if (admin.is_owner) {
+      console.log('This account owns the install — it is the one that can create and remove other admins.');
+    }
+  })
   .catch((err) => {
     console.error('Failed to create admin:', err.message);
     process.exit(1);

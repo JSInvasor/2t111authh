@@ -107,7 +107,8 @@ CREATE TABLE IF NOT EXISTS admins (
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   created_at    INTEGER NOT NULL,
-  token_version INTEGER NOT NULL DEFAULT 0  -- bumped on password change; invalidates old sessions
+  token_version INTEGER NOT NULL DEFAULT 0, -- bumped on password change; invalidates old sessions
+  is_owner      INTEGER NOT NULL DEFAULT 0  -- exactly one; only the owner may manage other admins
 );
 
 CREATE TABLE IF NOT EXISTS resellers (

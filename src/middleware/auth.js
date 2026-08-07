@@ -57,6 +57,25 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+/**
+ * Managing admin accounts is owner-only. Every admin being able to mint more
+ * admins would flatten the hierarchy into "everyone is root" — one compromised
+ * account could quietly create its own way back in, and no account would be able
+ * to shut it out again.
+ *
+ * The master ADMIN_API_KEY passes: it is the root credential and the recovery
+ * path, so locking it out of admin management would make a lost owner password
+ * a database-surgery problem.
+ */
+function requireOwner(req, res, next) {
+  requireAdmin(req, res, () => {
+    if (!req.auth.viaApiKey && !admins.isOwner(req.auth.username)) {
+      return res.status(403).json({ success: false, message: 'Only the owner account can manage admins' });
+    }
+    next();
+  });
+}
+
 function requireReseller(req, res, next) {
   const auth = resolve(req);
   if (!auth) return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -73,4 +92,4 @@ function requireReseller(req, res, next) {
   next();
 }
 
-module.exports = { resolve, requireAdmin, requireReseller };
+module.exports = { resolve, requireAdmin, requireOwner, requireReseller };

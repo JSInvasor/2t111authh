@@ -54,7 +54,41 @@ hesapla giriş yap.
 - **Key yönetimi** — toplu key üretme (adet/süre/not), arama, ban/unban, HWID reset, silme, tek tık kopyalama
 
 Giriş oturum çerezi ile yapılır (master `ADMIN_API_KEY` tarayıcıya hiç gönderilmez).
-Yeni admin eklemek / şifre değiştirmek için: `npm run create-admin -- <kullanıcı> <şifre>`.
+### Admin hesapları
+
+Panelde **Admins** sekmesi var; yeni admin açmak için artık sunucuya SSH atman gerekmiyor.
+
+Kurulumun **tek bir sahibi (owner)** var: ilk oluşturulan admin hesabı. (Mevcut bir
+kurulumda en eski hesap otomatik olarak owner atanır.) Ayrım kasıtlı — her admin başka
+admin yaratabilseydi yetki düzleşir, "herkes root" olurdu: ele geçirilen tek bir hesap
+kendine sessizce bir dönüş yolu açabilir ve onu kapatabilecek bir hesap kalmazdı.
+
+| Yapabilen                          | Owner | Normal admin |
+| ---------------------------------- | :---: | :----------: |
+| Script / key / bayi yönetimi       |  ✅   |      ✅      |
+| Admin listesini görmek             |  ✅   |      ✅      |
+| **Admin oluşturmak / silmek**      |  ✅   |      ❌      |
+| Başkasının şifresini değiştirmek   |  ✅   |      ❌      |
+| **Kendi** şifresini değiştirmek    |  ✅   |      ✅      |
+| Sahipliği devretmek                |  ✅   |      ❌      |
+
+Detaylar:
+
+- **Kendi şifreni değiştirirken mevcut şifre soruluyor** — ele geçirilmiş bir oturum,
+  hesabın gerçek sahibini kendi hesabından kilitleyememeli.
+- Şifre değişimi **her yerde oturumu kapatıyor** (`token_version` artıyor).
+- Silinen admin **anında** düşüyor: `requireAdmin` her istekte hesabı DB'den okuyor.
+- **Owner silinemez** ve **kendi oturum açtığın hesabı silemezsin**; son admin de
+  silinemez. Üçü de kimsenin yönetemediği bir kurulum bırakırdı.
+- Owner'ı emekliye ayırmadan önce **Make owner** ile devret. Devir tek transaction'da,
+  öncesinde de sonrasında da tam olarak bir owner var.
+- **`ADMIN_API_KEY` owner sayılır.** Kök kimlik bilgisi ve kurtarma yolu o; yoksa
+  kaybolan bir owner şifresi elle veritabanı ameliyatı demek olurdu.
+- Her işlem **denetim kaydına** yazılıyor (kim, kimi, ne zaman).
+
+CLI hâlâ çalışıyor (ilk kurulum ve kurtarma için):
+`npm run create-admin -- <kullanıcı> <şifre>` — boş bir veritabanında açtığı ilk hesap
+owner olur. Parola alt sınırı panelle aynı: **8 karakter**.
 
 ### Arayüz
 
@@ -400,6 +434,11 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | -------- | ---------------------------------------------- | -------------------------------------------------------- |
 | `POST`   | `/api/v1/scripts`                              | Script oluştur `{ name, source?, version?, hwid_lock? }` |
 | `GET`    | `/api/v1/audit`                                | Denetim kaydı (`?target_type=key&target_id=…&limit=…`)   |
+| `GET`    | `/api/v1/admins`                               | Admin listesi + `you.is_owner`                           |
+| `POST`   | `/api/v1/admins`                               | **Owner** — admin oluştur `{ username, password }`       |
+| `PATCH`  | `/api/v1/admins/:id`                           | Şifre değiştir (owner herkesi; admin kendini + `current_password`) |
+| `DELETE` | `/api/v1/admins/:id`                           | **Owner** — admin sil (owner / kendisi / son admin hariç) |
+| `POST`   | `/api/v1/admins/:id/transfer-ownership`        | **Owner** — sahipliği devret                             |
 | `GET`    | `/api/v1/scripts`                              | Tüm script'leri listele                                  |
 | `GET`    | `/api/v1/scripts/:id`                          | Script detayı + loader snippet                           |
 | `PATCH`  | `/api/v1/scripts/:id`                          | Güncelle (ör. yeni `source`)                             |
@@ -466,6 +505,7 @@ Test dosyaları:
 | `risk.test.js`                                                           | Risk skoru, ortam pinleme, bulanık cihaz eşleştirme — ağırlıklı olarak **yanlış pozitif** senaryoları (ağ değiştiren telefon, tek router'daki ev, yeniden kurulum) |
 | `lease.test.js` / `retention.test.js` / `net.test.js`                    | Canlı oturumlar & iptal / log rollup & saklama / ağ prefix eşleştirme                                |
 | `audit.test.js`                                                          | Denetim kaydı: kim ne yaptı, ve kaydın **düzenlenemediği** (trigger'la append-only)                 |
+| `admins.test.js`                                                         | Admin yönetimi — ağırlıkla **kilitlenme** ve **yetki sınırı** senaryoları: owner silinemez, son admin silinemez, normal admin admin yaratamaz |
 | `backup.test.js`                                                         | Yedekleme — ve **gerçek tatbikat**: yedek al, orijinali yok say, kopyadan aç, her key'in hâlâ auth olabildiğini doğrula |
 | `api.test.js`                                                            | Gerçek Express uygulaması üzerinden HTTP: loader teslimi, handshake→proof→auth, replay reddi, rapor |
 | `loader.test.js`                                                         | Gerçek loader bootstrap'ı bir Lua VM'de uçtan uca çalışır (anti-hook dahil)                         |
