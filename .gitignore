@@ -3,9 +3,10 @@ node_modules/
 *.env.local
 
 # SQLite database + WAL checkpoint shards — runtime data, not for VCS.
-# NOTE: data/2t1auth.db is already tracked from an earlier commit; run
-#   git rm --cached data/2t1auth.db data/2t1auth.db-wal data/2t1auth.db-shm
-# to stop tracking it (its contents stay in history until history is rewritten).
+# The db was tracked up to the commit that added this line and carried a real
+# admin password hash. It is untracked now, but the old contents remain in git
+# history: rotate any password/key that ever lived in it, and rewrite history if
+# the repository is or becomes public.
 data/*.db
 data/*.db-wal
 data/*.db-shm

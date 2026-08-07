@@ -7,7 +7,7 @@ const { authenticate, reportTamper } = require('../services/auth');
 const nonce = require('../services/nonce');
 const { renderLoader } = require('../services/bootstrap');
 const { sessionProof, safeEqual } = require('../utils/crypto');
-const { authLimiter, reportLimiter } = require('../middleware/rateLimit');
+const { authLimiter, loaderLimiter, reportLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -45,7 +45,7 @@ function field(value, max) {
  * calls /api/v1/auth. This is what end users load:
  *   script_key = "..."; loadstring(game:HttpGet(".../loader/<id>.lua"))()
  */
-router.get('/loader/:file', (req, res) => {
+router.get('/loader/:file', loaderLimiter, (req, res) => {
   const script = scripts.getScript(req.params.file.replace(/\.lua$/i, ''));
   res.type('text/plain');
   // Every delivery is unique (fresh identifiers/cipher key) — never let a proxy

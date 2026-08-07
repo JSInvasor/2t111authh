@@ -50,6 +50,11 @@ const config = {
     : path.join(__dirname, '..', 'data', '2t1auth.db'),
   authRateMax: int(process.env.AUTH_RATE_MAX, 30, { min: 1 }),
   authRateWindowMs: int(process.env.AUTH_RATE_WINDOW_MS, 60000, { min: 1000 }),
+  // Serving /loader/<id>.lua re-renders and re-encrypts the bootstrap every time
+  // (it must be byte-unique, so it cannot be cached). Bound it so the one public
+  // route that does real CPU work can't be used to starve the auth endpoint.
+  loaderRateMax: int(process.env.LOADER_RATE_MAX, 20, { min: 1 }),
+  loaderRateWindowMs: int(process.env.LOADER_RATE_WINDOW_MS, 60000, { min: 1000 }),
 
   // Max JSON body for the admin script routes (source uploads can be large).
   // Public endpoints (auth/handshake) are capped much lower, see src/index.js.

@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS executions (
 );
 CREATE INDEX IF NOT EXISTS idx_exec_script  ON executions(script_id);
 CREATE INDEX IF NOT EXISTS idx_exec_created ON executions(created_at);
+-- Hot path: the key throttle and the key-sharing check both scan a single key's
+-- recent rows on EVERY auth. Without this they fall back to idx_exec_created and
+-- walk the whole window — ~114ms per auth at 300k rows vs ~0.06ms with it.
+CREATE INDEX IF NOT EXISTS idx_exec_key_time ON executions(key_id, created_at);
 
 CREATE TABLE IF NOT EXISTS admins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
