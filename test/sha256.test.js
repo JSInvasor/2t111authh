@@ -113,7 +113,9 @@ test('sha256raw returns the 32 raw digest bytes', { skip }, () => {
 
 test('the loader hashes exactly the fields the server does', { skip }, () => {
   // Guards against the two sides drifting apart: same joined message, same key.
-  const { sessionProof, sessionKey } = require('../src/utils/crypto');
+  // Every derivation in the protocol is pinned here — if any one of them drifts,
+  // the corresponding step fails closed and nobody can authenticate at all.
+  const { keyHash, serverProof, clientProof, reportProof, responseProof, sessionKey } = require('../src/utils/crypto');
   const L = luaState('bit32 = nil');
   const f = {
     salt: 'SALT-abc123',
@@ -123,10 +125,38 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
     hwid: 'DEVICE-0001',
     executor: 'synapse',
   };
+  const hex = (...a) => call(L, ...a).toString();
 
-  const luaProof = call(L, 'HM', f.salt, [f.nonce, f.scriptId, f.key, f.hwid, f.executor].join('|')).toString();
-  assert.strictEqual(luaProof, sessionProof(f));
+  // kh — how the loader names its key on the wire.
+  assert.strictEqual(hex('SH', '2t1kh|' + f.key), keyHash(f.key));
 
+  // server_proof — the loader verifies this before revealing anything.
+  assert.strictEqual(
+    hex('HM', f.key, '2t1srv|' + [f.nonce, f.salt, f.scriptId].join('|')),
+    serverProof(f)
+  );
+
+  // client proof — sent with /auth.
+  assert.strictEqual(
+    hex('HM', f.key, '2t1cli|' + [f.nonce, f.scriptId, f.hwid, f.executor].join('|')),
+    clientProof(f)
+  );
+
+  // report proof — sent with /report.
+  const reason = 'hook:http';
+  assert.strictEqual(
+    hex('HM', f.key, '2t1rep|' + [f.nonce, f.scriptId, reason].join('|')),
+    reportProof({ ...f, reason })
+  );
+
+  // resp_proof — the loader verifies this before running the payload.
+  const script = 'return 42';
+  assert.strictEqual(
+    hex('HM', f.key, '2t1res|' + [f.nonce, 'session', script].join('|')),
+    responseProof({ ...f, enc: 'session', script })
+  );
+
+  // session key — the cipher key both sides derive independently.
   const luaKey = call(L, 'RAW', [f.salt, f.nonce, f.scriptId, f.key, f.hwid].join('|'));
   assert.ok(luaKey.equals(sessionKey(f)));
 });

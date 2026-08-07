@@ -27,9 +27,13 @@ CREATE TABLE IF NOT EXISTS keys (
   last_hwid_reset  INTEGER,
   total_executions INTEGER NOT NULL DEFAULT 0,
   last_seen        INTEGER,
-  created_at       INTEGER NOT NULL
+  created_at       INTEGER NOT NULL,
+  kh               TEXT                              -- keyHash(value); what the loader sends instead of the key
 );
 CREATE INDEX IF NOT EXISTS idx_keys_value  ON keys(value);
+-- idx_keys_kh is created in db/index.js instead: on a database that predates the
+-- kh column, this file runs before the column is added, and indexing a column
+-- that does not exist yet aborts the whole schema apply.
 CREATE INDEX IF NOT EXISTS idx_keys_script ON keys(script_id);
 
 CREATE TABLE IF NOT EXISTS executions (

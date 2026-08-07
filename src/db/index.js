@@ -32,4 +32,20 @@ ensureColumn('scripts', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('keys', 'reseller_id', 'INTEGER');
 db.exec('CREATE INDEX IF NOT EXISTS idx_keys_reseller ON keys(reseller_id)');
 
+// keyHash() of the key value — how a loader names its key on the wire without
+// sending it. Backfilled here so databases created before the mutual-auth
+// protocol keep working without a manual migration step.
+ensureColumn('keys', 'kh', 'TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_keys_kh ON keys(kh)');
+{
+  const stale = db.prepare('SELECT id, value FROM keys WHERE kh IS NULL').all();
+  if (stale.length) {
+    const { keyHash } = require('../utils/crypto');
+    const setKh = db.prepare('UPDATE keys SET kh = ? WHERE id = ?');
+    db.transaction(() => {
+      for (const row of stale) setKh.run(keyHash(row.value), row.id);
+    })();
+  }
+}
+
 module.exports = db;

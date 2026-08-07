@@ -202,34 +202,34 @@ test('an unprotected script is still delivered verbatim', () => {
 
 test('a tamper report is recorded against the key', () => {
   const { s, k } = mk();
-  assert.ok(reportTamper({ scriptId: s.id, key: k.value, hwid: 'DEV', reason: 'hook:http' }).success);
+  assert.ok(reportTamper({ scriptId: s.id, keyRow: k, hwid: 'DEV', reason: 'hook:http' }).success);
   assert.ok(reasonsFor(k.id).includes('client_tamper:hook:http'));
 });
 
 test('tamper reports cannot smuggle junk into the log', () => {
   const { s, k } = mk();
-  reportTamper({ scriptId: s.id, key: k.value, reason: "'; DROP TABLE keys; --" + 'x'.repeat(200) });
+  reportTamper({ scriptId: s.id, keyRow: k, reason: "'; DROP TABLE keys; --" + 'x'.repeat(200) });
   const logged = reasonsFor(k.id).find((r) => r.startsWith('client_tamper:'));
   assert.match(logged, /^client_tamper:[a-z0-9:_-]{1,32}$/i);
   assert.ok(db.prepare('SELECT COUNT(*) AS n FROM keys').get().n > 0, 'keys table survived');
 });
 
 test('a tamper report for an unknown script is refused', () => {
-  assert.strictEqual(reportTamper({ scriptId: 'nope', key: 'x', reason: 'hook:http' }).code, 404);
+  assert.strictEqual(reportTamper({ scriptId: 'nope', reason: 'hook:http' }).code, 404);
 });
 
 test('reports can auto-ban once the threshold is set', () => {
   const { s, k } = mk();
   withConfig({ tamperReportBan: 2 }, () => {
-    reportTamper({ scriptId: s.id, key: k.value, reason: 'hook:http' });
+    reportTamper({ scriptId: s.id, keyRow: k, reason: 'hook:http' });
     assert.strictEqual(keys.getKeyById(k.id).status, 'active');
-    reportTamper({ scriptId: s.id, key: k.value, reason: 'hook:http' });
+    reportTamper({ scriptId: s.id, keyRow: k, reason: 'hook:http' });
     assert.strictEqual(keys.getKeyById(k.id).status, 'banned');
   });
 });
 
 test('reports are advisory only — off by default they never ban', () => {
   const { s, k } = mk();
-  for (let i = 0; i < 20; i++) reportTamper({ scriptId: s.id, key: k.value, reason: 'hook:http' });
+  for (let i = 0; i < 20; i++) reportTamper({ scriptId: s.id, keyRow: k, reason: 'hook:http' });
   assert.strictEqual(keys.getKeyById(k.id).status, 'active');
 });

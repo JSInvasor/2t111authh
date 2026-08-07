@@ -14,7 +14,7 @@
 const crypto = require('crypto');
 const config = require('../config');
 
-const store = new Map(); // nonce -> { scriptId, ip, salt, expires }
+const store = new Map(); // nonce -> { scriptId, ip, kh, salt, expires }
 const perIp = new Map(); // ip -> live nonce count
 
 function bumpIp(ip, delta) {
@@ -33,12 +33,15 @@ function drop(nonce) {
 }
 
 /**
- * Issue a fresh handshake bound to a script (and, when enabled, to the caller's IP).
+ * Issue a fresh handshake bound to a script, to the key it was opened for, and
+ * (when enabled) to the caller's IP.
  * @param {string} scriptId
- * @param {{ip?:string|null}} [opts]
+ * @param {{ip?:string|null, kh?:string|null}} [opts]
+ *   kh — keyHash of the key this handshake is for. Recorded so /api/v1/auth can
+ *   refuse a nonce that was opened under a different key.
  * @returns {{nonce:string, salt:string, ttl:number}}
  */
-function issue(scriptId, { ip = null } = {}) {
+function issue(scriptId, { ip = null, kh = null } = {}) {
   sweep();
 
   const boundIp = config.nonceBindIp && ip ? String(ip) : null;
@@ -66,6 +69,7 @@ function issue(scriptId, { ip = null } = {}) {
   store.set(nonce, {
     scriptId: String(scriptId),
     ip: boundIp,
+    kh: kh ? String(kh) : null,
     salt,
     expires: Date.now() + config.nonceTtlMs,
   });
@@ -76,9 +80,12 @@ function issue(scriptId, { ip = null } = {}) {
 /**
  * Spend a handshake. Always single-use: the record is removed on the first
  * attempt, valid or not, so a guessed/stolen nonce can't be retried.
- * @returns {{ok:true, salt:string} | {ok:false, reason:string}}
+ * @param {string} nonce
+ * @param {{scriptId:string, ip?:string|null, kh?:string|null}} opts
+ *   kh — when given, the handshake must have been opened for this same key.
+ * @returns {{ok:true, salt:string, kh:string|null} | {ok:false, reason:string}}
  */
-function consume(nonce, { scriptId, ip = null } = {}) {
+function consume(nonce, { scriptId, ip = null, kh = null } = {}) {
   const rec = store.get(String(nonce || ''));
   if (!rec) return { ok: false, reason: 'unknown_nonce' };
   drop(String(nonce));
@@ -86,7 +93,13 @@ function consume(nonce, { scriptId, ip = null } = {}) {
   if (rec.expires < Date.now()) return { ok: false, reason: 'expired_nonce' };
   if (rec.scriptId !== String(scriptId)) return { ok: false, reason: 'nonce_script_mismatch' };
   if (rec.ip && String(ip || '') !== rec.ip) return { ok: false, reason: 'nonce_ip_mismatch' };
-  return { ok: true, salt: rec.salt };
+  // A handshake opened for one key may not be spent for another, so a nonce
+  // harvested while probing with a key you own can't be used to carry someone
+  // else's key through.
+  if (kh !== null && rec.kh !== null && rec.kh !== String(kh)) {
+    return { ok: false, reason: 'nonce_key_mismatch' };
+  }
+  return { ok: true, salt: rec.salt, kh: rec.kh };
 }
 
 function sweep() {

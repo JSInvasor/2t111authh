@@ -25,7 +25,7 @@ const nonce = require('../src/services/nonce');
 const { authenticate } = require('../src/services/auth');
 const { renderLoader } = require('../src/services/bootstrap');
 const { rc4 } = require('../src/services/obfuscator');
-const { sessionProof, sessionKey } = require('../src/utils/crypto');
+const { keyHash, serverProof, clientProof, responseProof, sessionKey } = require('../src/utils/crypto');
 
 /** Pull the ciphertext out of a delivered stub and RC4 it with `key`. */
 function decryptStub(stub, key) {
@@ -63,19 +63,34 @@ function makeServer(scriptId, { ip = CLIENT_IP } = {}) {
 
   function handle(url, body) {
     if (url.endsWith('/api/v1/handshake')) {
-      const s = nonce.issue(scriptId, { ip });
-      return JSON.stringify({ success: true, nonce: s.nonce, salt: s.salt, ttl: s.ttl });
+      const s = nonce.issue(scriptId, { ip, kh: body.kh });
+      const row = keys.getKeyByHash(String(body.kh || ''), scriptId);
+      return JSON.stringify({
+        success: true,
+        nonce: s.nonce,
+        salt: s.salt,
+        ttl: s.ttl,
+        server_proof: row
+          ? serverProof({ key: row.value, nonce: s.nonce, salt: s.salt, scriptId })
+          : 'decoy'.repeat(11).slice(0, 64),
+      });
     }
 
     if (url.endsWith('/api/v1/auth')) {
-      const spent = nonce.consume(String(body.nonce || ''), { scriptId: String(body.script_id), ip });
+      const spent = nonce.consume(String(body.nonce || ''), {
+        scriptId: String(body.script_id),
+        ip,
+        kh: String(body.kh || ''),
+      });
       if (!spent.ok) return JSON.stringify({ success: false, message: 'Invalid or expired session' });
 
-      const expected = sessionProof({
-        salt: spent.salt,
+      const row = keys.getKeyByHash(String(body.kh || ''), String(body.script_id));
+      if (!row) return JSON.stringify({ success: false, message: 'Invalid key' });
+
+      const expected = clientProof({
+        key: row.value,
         nonce: String(body.nonce),
         scriptId: String(body.script_id),
-        key: body.key,
         hwid: body.hwid,
         executor: body.executor,
       });
@@ -85,12 +100,20 @@ function makeServer(scriptId, { ip = CLIENT_IP } = {}) {
 
       const result = authenticate({
         scriptId: String(body.script_id),
-        key: String(body.key),
+        key: row.value,
         hwid: body.hwid || null,
         ip,
         executor: body.executor || null,
         session: { salt: spent.salt, nonce: String(body.nonce) },
       });
+      if (result.success) {
+        result.resp_proof = responseProof({
+          key: row.value,
+          nonce: String(body.nonce),
+          enc: result.enc,
+          script: result.script,
+        });
+      }
       return JSON.stringify(result);
     }
 
@@ -198,7 +221,12 @@ test('the Lua proof matches the one node:crypto computes', { skip }, () => {
   assert.match(auth.body.proof, /^[0-9a-f]{64}$/, 'proof is not a SHA-256 HMAC');
   // The server already checked it (the script ran), so this pins the shape and
   // guards against the proof accidentally becoming a constant.
-  assert.notStrictEqual(auth.body.proof, sessionProof({ salt: 'x', nonce: 'x', scriptId: 'x', key: 'x', hwid: 'x' }));
+  assert.notStrictEqual(auth.body.proof, clientProof({ key: 'x', nonce: 'x', scriptId: 'x', hwid: 'x', executor: 'x' }));
+
+  // The key is named by hash and never sent.
+  assert.strictEqual(auth.body.kh, keyHash(key.value));
+  assert.ok(!('key' in auth.body));
+  assert.ok(!JSON.stringify(auth.body).includes(key.value), 'the key leaked into the auth request');
 });
 
 test('the loader sends a normalised HWID, never a placeholder', { skip }, () => {
@@ -289,7 +317,7 @@ test('a missing script_key bails before touching the network', { skip }, () => {
   assert.ok(run.warnings.join(' ').includes('script_key'));
 });
 
-test('a wrong key never yields a payload', { skip }, () => {
+test('a wrong key is rejected at the handshake, before /auth is ever reached', { skip }, () => {
   const { script } = mkScript();
   const server = makeServer(script.id);
   const run = runLoader(renderLoader(script, { obfuscate: false }), {
@@ -297,7 +325,13 @@ test('a wrong key never yields a payload', { skip }, () => {
     server,
   });
   assert.strictEqual(run.result, undefined);
-  assert.ok(run.warnings.join(' ').includes('Invalid key'));
+  // The decoy server_proof doesn't verify under the wrong key, so the loader
+  // stops one step earlier than it used to — it never sends hwid or executor.
+  assert.match(run.warnings.join(' '), /server verification failed/i);
+  assert.ok(
+    !server.seen.some((r) => r.url.endsWith('/auth')),
+    'the loader talked to /auth despite failing to authenticate the server'
+  );
 });
 
 test('a captured payload is inert without the session that fetched it', { skip }, () => {

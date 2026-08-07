@@ -2,7 +2,7 @@
 
 const db = require('../db');
 const config = require('../config');
-const { generateKey } = require('../utils/crypto');
+const { generateKey, keyHash } = require('../utils/crypto');
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -17,8 +17,8 @@ function createKeys(
   { count = 1, expiresInDays = null, note = '', discordId = null, resellerId = null } = {}
 ) {
   const insert = db.prepare(
-    `INSERT INTO keys (value, script_id, note, discord_id, expires_at, reseller_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO keys (value, kh, script_id, note, discord_id, expires_at, reseller_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const t = now();
   const expiresAt = expiresInDays ? t + Math.round(Number(expiresInDays) * 86400) : null;
@@ -31,7 +31,7 @@ function createKeys(
       for (let attempt = 0; ; attempt++) {
         const value = generateKey(config.keyPrefix);
         try {
-          insert.run(value, scriptId, note, discordId, expiresAt, resellerId, t);
+          insert.run(value, keyHash(value), scriptId, note, discordId, expiresAt, resellerId, t);
           created.push(value);
           break;
         } catch (e) {
@@ -51,6 +51,14 @@ function getKeyByValue(value) {
 
 function getKeyById(id) {
   return db.prepare('SELECT * FROM keys WHERE id = ?').get(id);
+}
+
+/**
+ * Resolve the key a loader named by hash. This is the only lookup the public
+ * auth path performs, because the loader never sends the key itself.
+ */
+function getKeyByHash(kh, scriptId) {
+  return db.prepare('SELECT * FROM keys WHERE kh = ? AND script_id = ?').get(String(kh), String(scriptId));
 }
 
 function listKeys(scriptId, { limit = 100, offset = 0 } = {}) {
@@ -129,6 +137,7 @@ module.exports = {
   createKeys,
   getKeyByValue,
   getKeyById,
+  getKeyByHash,
   getKeyByDiscord,
   listKeys,
   listKeysByReseller,

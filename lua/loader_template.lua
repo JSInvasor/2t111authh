@@ -7,16 +7,26 @@
         script_key = "YOUR_KEY_HERE"
         loadstring(game:HttpGet("{{API_URL}}/loader/{{SCRIPT_ID}}.lua"))()
 
-    Flow:
-        handshake  -> single-use nonce + session salt
-        proof      -> HMAC-SHA256(salt, nonce|script|key|hwid|executor)
-        auth       -> encrypted payload, keyed by SHA256(salt|nonce|script|key|hwid)
-    The payload never carries its own key, so a captured response is inert
-    outside the session that requested it.
+    Flow (mutually authenticated, anchored on the license key):
+        handshake    -> we send SHA256("2t1kh|"..key); never the key itself
+        server_proof -> HMAC(key, "2t1srv|"..nonce|salt|script)
+                        verified HERE, before we send anything else. Only the
+                        real server knows the key, so an endpoint that merely
+                        answers this URL cannot get past this line.
+        proof        -> HMAC(key, "2t1cli|"..nonce|script|hwid|executor)
+        auth         -> encrypted payload, keyed by SHA256(salt|nonce|script|key|hwid)
+        resp_proof   -> HMAC(key, "2t1res|"..nonce|enc|script)
+                        covers `enc`, so the response cannot be downgraded from
+                        session-encrypted to plaintext in flight.
+    The key never travels, and the payload never carries its own cipher key, so
+    a captured exchange is inert outside the session that requested it.
 ]==]
 
 local API_URL   = "{{API_URL}}"
 local SCRIPT_ID = "{{SCRIPT_ID}}"
+-- Set by the server at render time. When true, a response that is not
+-- session-encrypted is refused outright rather than executed.
+local REQUIRE_SESSION = {{REQUIRE_SESSION}}
 
 {{SHA256}}
 
@@ -81,16 +91,45 @@ local function post(url, payload)
     return data
 end
 
+-- Identify the key by hash. This is what goes on the wire in every request;
+-- the key itself never leaves this script.
+local kh = sha256hex("2t1kh|" .. key)
+
+-- Verify a handshake response really came from our server. Returns nonce+salt on
+-- success, nil otherwise. Only something holding our key can produce the proof.
+local function verifyHandshake(hs)
+    if not hs or not hs.success or not hs.nonce then return nil end
+    local n, s = tostring(hs.nonce), tostring(hs.salt or "")
+    local expect = ""
+    pcall(function()
+        expect = hmac256hex(key, "2t1srv|" .. table.concat({ n, s, SCRIPT_ID }, "|"))
+    end)
+    if #expect == 0 or tostring(hs.server_proof or "") ~= expect then return nil end
+    return n, s
+end
+
 -- Tell the server a client-side check tripped. Best effort — a failed report
 -- never changes what we do next.
+--
+-- A report opens its own handshake, for two reasons. It proves the report comes
+-- from someone actually holding this key (reports can trigger an auto-ban, so an
+-- unauthenticated one would be a way to get anyone's key banned), and it lets us
+-- authenticate the server first, so a hostile endpoint never receives our
+-- telemetry. `kh` goes on the wire, never the key.
 local function report(reason)
-    pcall(post, API_URL .. "/api/v1/report", {
-        script_id = SCRIPT_ID,
-        key = key,
-        executor = executor,
-        hwid = hwid,
-        reason = reason,
-    })
+    pcall(function()
+        local n = verifyHandshake(post(API_URL .. "/api/v1/handshake", { script_id = SCRIPT_ID, kh = kh }))
+        if not n then return end
+        post(API_URL .. "/api/v1/report", {
+            script_id = SCRIPT_ID,
+            kh = kh,
+            nonce = n,
+            proof = hmac256hex(key, "2t1rep|" .. table.concat({ n, SCRIPT_ID, tostring(reason) }, "|")),
+            executor = executor,
+            hwid = hwid,
+            reason = reason,
+        })
+    end)
 end
 
 -- Report and refuse to continue.
@@ -136,25 +175,33 @@ if debug and debug.info then
     end
 end
 
--- 5) handshake -> single-use nonce + session salt
-local hs = post(API_URL .. "/api/v1/handshake", { script_id = SCRIPT_ID })
-if not hs or not hs.success or not hs.nonce then
+-- 5) handshake -> single-use nonce + session salt + the server's own proof
+local hs = post(API_URL .. "/api/v1/handshake", { script_id = SCRIPT_ID, kh = kh })
+if not hs or not hs.success then
     return warn("[2t1auth] " .. tostring(hs and hs.message or "handshake failed."))
 end
-local nonce = tostring(hs.nonce)
-local salt = tostring(hs.salt or "")
 
--- 6) prove we hold this session's salt, over the exact request we're sending.
---    The salt itself never leaves the client, so the proof can't be forged from
---    a captured auth request alone.
+-- 6) AUTHENTICATE THE SERVER before telling it anything.
+--    Only something holding our key can produce that HMAC. Anything else that
+--    answers this URL — a hostile proxy, a poisoned DNS entry, a captive portal
+--    — fails here, and we stop while it still knows nothing but our key's hash.
+--    Deliberately not reported: the report would go to that same endpoint.
+local nonce, salt = verifyHandshake(hs)
+if not nonce then
+    return warn("[2t1auth] server verification failed — refusing to continue.")
+end
+
+-- 7) prove we hold the key, over the exact request we're sending. The key never
+--    goes on the wire, so a captured request reveals nothing reusable and
+--    editing any field of it invalidates the proof.
 local proof = ""
 pcall(function()
-    proof = hmac256hex(salt, table.concat({ nonce, SCRIPT_ID, key, hwid, executor }, "|"))
+    proof = hmac256hex(key, "2t1cli|" .. table.concat({ nonce, SCRIPT_ID, hwid, executor }, "|"))
 end)
 
 local data = post(API_URL .. "/api/v1/auth", {
     script_id = SCRIPT_ID,
-    key = key,
+    kh = kh,
     hwid = hwid,
     executor = executor,
     nonce = nonce,
@@ -170,7 +217,22 @@ if type(data.script) ~= "string" or #data.script == 0 then
     return warn("[2t1auth] empty payload.")
 end
 
--- 7) run the protected script. In session mode the payload is encrypted under a
+-- 8) verify the payload really came from the server, unmodified. `enc` is inside
+--    the HMAC, so a response cannot be downgraded to plaintext to make us run
+--    attacker-supplied Lua.
+local enc = tostring(data.enc or "")
+local respExpect = ""
+pcall(function()
+    respExpect = hmac256hex(key, "2t1res|" .. table.concat({ nonce, enc, data.script }, "|"))
+end)
+if #respExpect == 0 or tostring(data.resp_proof or "") ~= respExpect then
+    return bail("resp_proof", "payload verification failed — refusing to run it.")
+end
+if REQUIRE_SESSION and enc ~= "session" then
+    return bail("downgrade", "server did not session-encrypt the payload — refusing to run it.")
+end
+
+-- 9) run the protected script. In session mode the payload is encrypted under a
 --    key both sides derive independently; it is passed in as a vararg so it is
 --    never written to a global.
 local fn, err = loadChunk(data.script, "=2t1auth:" .. SCRIPT_ID)
@@ -178,7 +240,7 @@ if not fn then
     return bail("compile_failed", "failed to compile script: " .. tostring(err))
 end
 
-if data.enc == "session" then
+if enc == "session" then
     local sessionKey
     local ok = pcall(function()
         sessionKey = sha256raw(table.concat({ salt, nonce, SCRIPT_ID, key, hwid }, "|"))

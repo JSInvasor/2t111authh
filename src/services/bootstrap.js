@@ -26,9 +26,15 @@ function renderLoader(script, { obfuscate = config.antiTamper && config.obfuscat
   // inject Lua into every loader we hand out.
   const name = String(script.name || '').replace(/[\r\n"[\]]/g, ' ');
 
+  // Whether this deployment will session-encrypt payloads. Baked in at render
+  // time so the requirement is the SERVER's policy, not something the response
+  // gets to talk the loader out of — that is what stops a plaintext downgrade.
+  const requireSession = !!(config.antiTamper && config.sessionEncryption && script.obfuscate);
+
   const lua = TEMPLATE.replace(/\{\{API_URL\}\}/g, () => config.baseUrl)
     .replace(/\{\{SCRIPT_ID\}\}/g, () => script.id)
     .replace(/\{\{SCRIPT_NAME\}\}/g, () => name)
+    .replace(/\{\{REQUIRE_SESSION\}\}/g, () => String(requireSession))
     .replace(/\{\{SHA256\}\}/g, () => SHA256);
 
   // Ship the bootstrap encrypted as well, so there is no stable plaintext for an

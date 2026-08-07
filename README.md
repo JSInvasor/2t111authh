@@ -12,7 +12,7 @@ Kullanıcı executor'da:            Sunucu:
 
 ## Özellikler
 
-- 🛡️ **Anti-tamper** — oturum bazlı handshake (tek kullanımlık nonce + salt), **HMAC-SHA256 proof**, **oturum anahtarlı teslimat** (payload kendi anahtarını taşımaz), obfuscate edilmiş loader, anti-hook/anti-dump, executor allowlist, key-paylaşımı (HWID **ve** IP) oto-ban
+- 🛡️ **Anti-tamper** — **karşılıklı doğrulanan** handshake (sunucu da kendini kanıtlar), key hiç ağa çıkmaz, **HMAC-SHA256 proof**, **imzalı cevap** (düz metne düşürülemez), **oturum anahtarlı teslimat** (payload kendi anahtarını taşımaz), obfuscate edilmiş loader, anti-hook/anti-dump, executor allowlist, key-paylaşımı (HWID **ve** IP) oto-ban
 - 🔒 **Obfuscation** — teslim anında minify + RC4 şifreleme; script düz metin sızmaz
 - 👥 **Reseller sistemi** — alt-bayi hesapları, kredi/kota (1 key = 1 kredi), script atama, kapsamlı yetki (bayi kaynak kodu göremez, sadece kendi key'lerini yönetir), rol-bazlı panel
 - 🤖 **Discord bot** — `/getkey`, `/resethwid`, `/info` + admin komutları; role-bazlı whitelist, log kanalı
@@ -153,26 +153,44 @@ için key üretir. Her key **1 kredi** düşer.
 
 ## Anti-tamper
 
-Loader iki adımlı çalışır. Önce **handshake** ile tek kullanımlık bir **nonce** _ve_ o
-oturuma özel bir **salt** alır; sonra `/api/v1/auth`'a nonce + **proof** ile gider.
+Protokol **çift taraflı** doğrulanır ve dayanağı **lisans key'i**: istemciyle sunucunun
+zaten paylaştığı tek sır. Key'in kendisi hiç ağa çıkmaz — istemci kendini
+`kh = SHA256("2t1kh|"..key)` ile tanıtır, iki taraf da gerçek key'i bildiğini HMAC ile
+kanıtlar.
 
 ```
 loader                                   sunucu
-  │  POST /handshake {script_id}            │
-  │ ◀──────────── {nonce, salt, ttl} ───────┤   nonce: tek kullanımlık, script+IP'ye bağlı
+  │  POST /handshake {script_id, kh}        │   key değil, hash'i gider
+  │ ◀── {nonce, salt, ttl, server_proof} ───┤   server_proof = HMAC(key, 2t1srv|nonce|salt|script)
   │                                         │
-  │  proof = HMAC(salt, nonce|script|key|hwid|executor)
-  │  POST /auth {…, nonce, proof}  ────────▶│   proof doğrulanır, nonce yakılır
-  │ ◀── RC4(payload, SHA256(salt|nonce|script|key|hwid))
+  │  ★ server_proof DOĞRULANIR              │   ← sunucu burada kimliğini kanıtlar.
+  │    tutmazsa loader durur, hiçbir şey    │     Key'i bilmeyen bir uç nokta buradan
+  │    göndermeden çıkar                    │     geçemez; elinde sadece kh kalır.
   │                                         │
+  │  proof = HMAC(key, 2t1cli|nonce|script|hwid|executor)
+  │  POST /auth {script_id, kh, …, proof} ─▶│   proof doğrulanır, nonce yakılır
+  │ ◀── {script, enc, resp_proof} ──────────┤   resp_proof = HMAC(key, 2t1res|nonce|enc|script)
+  │     RC4(payload, SHA256(salt|nonce|script|key|hwid))
+  │                                         │
+  │  ★ resp_proof DOĞRULANIR + enc="session" zorunlu
   │  aynı anahtarı kendi hesaplar → çözer → çalıştırır
 ```
 
 **Sunucu tarafı (istemci kurcalansa bile geçerli):**
 
-- **Oturum proof'u** — auth isteği, handshake'ten gelen salt ile HMAC-SHA256'lanmış olmak
-  zorunda. Salt hiçbir zaman auth isteğinin içinde gitmez, yani yakalanan bir isteğin
-  **hiçbir alanı** (hwid, executor, key) değiştirilip yeniden gönderilemez.
+- **Karşılıklı doğrulama** — `server_proof` olmadan loader devam etmez. HTTP'ye cevap
+  verebilen ama key'i bilmeyen hiçbir şey (düşman proxy, zehirlenmiş DNS, captive portal)
+  bu satırı geçemez. Öncesi bir dönem bu adım yoktu ve loader, imzasız bir cevaptaki düz
+  metin Lua'yı çalıştırıyordu — key, nonce, proof gerekmeden.
+- **Key ağda taşınmaz** — istek `kh` taşır. Yakalanan ya da düşman bir uç noktaya düşen
+  trafikten geri döndürülebilir bir şey çıkmaz (key ~160 bit entropi).
+- **Cevap imzası** — `resp_proof` payload'ı **ve `enc` alanını** kapsar, yani cevap yolda
+  değiştirilemez ve oturum şifrelemesinden düz metne **düşürülemez**. Zorunluluk render
+  anında loader'a gömülür: sunucunun politikasıdır, cevabın ikna edebileceği bir şey değil.
+- **Oturum proof'u** — auth isteği key ile HMAC-SHA256'lanmış olmak zorunda. Yakalanan bir
+  isteğin **hiçbir alanı** (hwid, executor) değiştirilip yeniden gönderilemez.
+- **Key oracle yok** — bilinmeyen bir `kh` için handshake, aynı şekle sahip bir **decoy**
+  proof döner; cevaba bakarak bir key'in var olup olmadığı anlaşılamaz.
 - **Oturum anahtarlı teslimat** — payload'ın RC4 anahtarı artık payload'ın içinde
   **taşınmıyor**; iki taraf da `SHA256(salt|nonce|script|key|hwid)` ile bağımsız türetiyor.
   Proxy log'una düşen ya da Discord'da paylaşılan bir cevap, o oturum olmadan **çözülemez**.
@@ -247,9 +265,10 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
    script_key = "2t1_XXXX-XXXX-XXXX-XXXX";
    loadstring(game:HttpGet("http://localhost:3000/loader/<script_id>.lua"))()
    ```
-4. Çalıştırıldığında loader HWID toplar, önce `/api/v1/handshake` ile **nonce + salt**
-   alır, proof'u hesaplar, sonra `/api/v1/auth`'a POST atar; sunucu doğrularsa oturum
-   anahtarıyla şifrelenmiş script'i döndürür, loader anahtarı kendi türetip çalıştırır.
+4. Çalıştırıldığında loader HWID toplar, `/api/v1/handshake`'e **key'in hash'ini** yollayıp
+   **nonce + salt + server_proof** alır, **önce sunucuyu doğrular**, sonra proof'unu hesaplayıp
+   `/api/v1/auth`'a POST atar; sunucu doğrularsa oturum anahtarıyla şifrelenmiş script'i
+   imzalayarak döndürür, loader imzayı doğrulayıp anahtarı kendi türetip çalıştırır.
 
 ## API
 
@@ -258,9 +277,9 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | Method | Endpoint                | Açıklama                                                                             |
 | ------ | ----------------------- | ------------------------------------------------------------------------------------ |
 | `GET`  | `/loader/:scriptId.lua` | O script için Lua bootstrap'ı döndürür (şifreli, her istekte benzersiz)              |
-| `POST` | `/api/v1/handshake`     | `{ script_id }` → tek kullanımlık `{ nonce, salt, ttl }`                             |
-| `POST` | `/api/v1/auth`          | `{ script_id, key, hwid, executor, nonce, proof }` → doğrula & script döndür         |
-| `POST` | `/api/v1/report`        | `{ script_id, key, hwid, executor, reason }` → istemci tamper sinyali (bilgi amaçlı) |
+| `POST` | `/api/v1/handshake`     | `{ script_id, kh }` → tek kullanımlık `{ nonce, salt, ttl, server_proof }`            |
+| `POST` | `/api/v1/auth`          | `{ script_id, kh, hwid, executor, nonce, proof }` → doğrula & imzalı script döndür    |
+| `POST` | `/api/v1/report`        | `{ script_id, kh, hwid, executor, reason, nonce, proof }` → istemci tamper sinyali    |
 
 ### Admin (`Authorization: Bearer <ADMIN_API_KEY>`)
 

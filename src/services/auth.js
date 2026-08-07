@@ -237,15 +237,23 @@ function sharingViolation(keyId, { hwid, ip }) {
 }
 
 /**
- * Record a tamper signal the loader reported from the client. Advisory only —
- * the report is trivially forgeable, so it is logged (and optionally counted
- * toward an auto-ban) but never trusted to unlock anything.
+ * Record a tamper signal the loader reported from the client.
+ *
+ * The caller must already have been shown to hold the key (the route checks a
+ * session-bound HMAC before calling this). That matters because a report can
+ * count toward an auto-ban: while reports were unauthenticated, anyone who
+ * merely learned a key's value — a screenshot, a refund dispute, a dropped
+ * reseller — could file reports until that key was banned.
+ *
+ * Still advisory about *what* it claims: a client can lie about its own
+ * environment, so a report is logged and counted, never trusted to unlock
+ * anything.
  */
-function reportTamper({ scriptId, key, hwid, ip, executor, reason }) {
+function reportTamper({ scriptId, keyRow = null, hwid, ip, executor, reason }) {
   const script = getScript(scriptId);
   if (!script) return { success: false, code: 404, message: 'Script not found' };
 
-  const row = key ? db.prepare('SELECT id FROM keys WHERE value = ? AND script_id = ?').get(key, scriptId) : null;
+  const row = keyRow;
   const tag = `client_tamper:${
     String(reason || 'unknown')
       .replace(/[^a-z0-9:_-]/gi, '')
