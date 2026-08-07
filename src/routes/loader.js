@@ -121,7 +121,9 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
   const kh = String(body.kh);
   const hwid = field(body.hwid, MAX_HWID_LEN);
   const executor = field(body.executor, MAX_EXEC_LEN);
-  if (!KH_RE.test(kh) || hwid === null || executor === null) {
+  const device = field(body.device, MAX_EXEC_LEN);
+  const env = field(body.env, MAX_EXEC_LEN);
+  if (!KH_RE.test(kh) || hwid === null || executor === null || device === null || env === null) {
     return res.status(400).json({ success: false, message: 'Malformed request' });
   }
 
@@ -146,7 +148,15 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
   // Editing any field of a captured request invalidates it. Unknown keys fall
   // through to authenticate() so the "invalid key" answer stays uniform.
   if (config.antiTamper && config.requireProof && row) {
-    const expected = clientProof({ key: row.value, nonce: String(body.nonce), scriptId, hwid, executor });
+    const expected = clientProof({
+      key: row.value,
+      nonce: String(body.nonce),
+      scriptId,
+      hwid,
+      executor,
+      device,
+      env,
+    });
     if (!safeEqual(String(body.proof || ''), expected)) {
       return res.status(401).json({ success: false, message: 'Session verification failed' });
     }
@@ -158,6 +168,8 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
     hwid: hwid || null,
     ip,
     executor: executor || null,
+    device: device || null,
+    env: env || null,
     session,
   });
 

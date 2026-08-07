@@ -111,6 +111,26 @@ const config = {
   // than refusing the newest, so a crashed client can rejoin at once.
   leaseMaxPerKey: int(process.env.LEASE_MAX_PER_KEY, 1, { min: 1 }),
 
+  // ------------------------------- Risk --------------------------------
+  // Weigh the abuse signals together instead of letting each one hold its own
+  // hair-trigger ban. A single oddity is noise; several at once is a pattern.
+  riskScoring: bool(process.env.RISK_SCORING, true),
+  // Flag for the dashboard, but keep serving.
+  riskWatchAt: int(process.env.RISK_WATCH_AT, 45, { min: 1, max: 100 }),
+  // Take the key out of service. Deliberately high: a wrongly banned paying
+  // customer costs far more than a pirate who got one more session.
+  riskBanAt: int(process.env.RISK_BAN_AT, 85, { min: 1, max: 100 }),
+
+  // How far back an environment fingerprint change is treated as suspicious
+  // rather than "they updated their executor". Off by default — see risk.js.
+  envPinning: bool(process.env.ENV_PINNING, true),
+
+  // Device matching: how many of (hwid, device token) must line up. 2 is strict
+  // (both), 1 is forgiving (either identifies the device). 1 lets a user who
+  // wiped their executor workspace keep working, while a spoofed client id
+  // alone still fails.
+  deviceMatchRequired: int(process.env.DEVICE_MATCH_REQUIRED, 1, { min: 1, max: 2 }),
+
   // Key-sharing: auto-ban a key seen from more than N distinct HWIDs in the window (0 = off).
   keyShareMaxHwids: int(process.env.KEY_SHARE_MAX_HWIDS, 0),
   // …or from more than N distinct IPs in the same window (0 = off). Catches sharing

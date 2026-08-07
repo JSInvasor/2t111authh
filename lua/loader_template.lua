@@ -62,6 +62,31 @@ end)
 executor = string.sub(string.gsub(executor, "[^%w%.%-_ ]", ""), 1, 64)
 if #executor == 0 then executor = "unknown" end
 
+-- A device id of our own, kept in the executor's own filesystem. The client id
+-- above has public spoofers and is one value to fake; this one is generated
+-- here, never derived from anything guessable, and survives a spoofed client id
+-- or a reinstall of the game. It is lost if the user wipes the executor's
+-- workspace, which is why it is one signal among several rather than the lock.
+local deviceToken = ""
+pcall(function()
+    if not (readfile and writefile and isfile) then return end
+    local file = "2t1auth_device.txt"
+    if isfile(file) then
+        deviceToken = string.gsub(tostring(readfile(file)), "[^%x]", "")
+    end
+    if #deviceToken < 32 then
+        math.randomseed(((tick and math.floor(tick() * 1000000)) or os.time()) % 2147483647)
+        local hex, out = "0123456789abcdef", {}
+        for i = 1, 32 do
+            local j = math.random(1, 16)
+            out[i] = string.sub(hex, j, j)
+        end
+        deviceToken = table.concat(out)
+        writefile(file, deviceToken)
+    end
+    deviceToken = string.sub(deviceToken, 1, 64)
+end)
+
 -- 3) find an HTTP request function (varies per executor)
 local httpRequest = (syn and syn.request)
     or (http and http.request)
@@ -168,12 +193,38 @@ if hooked(jsonEncode) or hooked(jsonDecode) then report("hook:json") end
 
 -- Cross-check with the debug library: a genuine executor primitive reports "[C]"
 -- as its source, a Lua-level replacement reports a real chunk name.
+local httpSource = ""
 if debug and debug.info then
     local ok, src = pcall(debug.info, httpRequest, "s")
-    if ok and type(src) == "string" and #src > 0 and src ~= "[C]" then
-        report("hook:http_source")
+    if ok and type(src) == "string" then
+        httpSource = src
+        if #src > 0 and src ~= "[C]" then report("hook:http_source") end
     end
 end
+
+-- A fingerprint of what this environment looks like. The server pins whatever
+-- it sees on a key's first successful auth and compares afterwards, so a machine
+-- that later grows a hook, swaps executor, or turns out to be a different person
+-- entirely stops looking like the machine that bought the key.
+--
+-- Note what this is and isn't: the client reports it, so a determined attacker
+-- can report whatever they like. It is a signal, weighed with the others — not
+-- a gate, and never treated as proof.
+local envFp = ""
+pcall(function()
+    envFp = sha256hex(
+        table.concat({
+            executor,
+            isCClosure and "ic1" or "ic0",
+            hooked(httpRequest) and "h1" or "h0",
+            hooked(loadChunk) and "l1" or "l0",
+            httpSource,
+            tostring(type(getgenv)),
+            tostring(type(hookfunction)),
+            tostring(type(getrawmetatable)),
+        }, "|")
+    )
+end)
 
 -- 5) handshake -> single-use nonce + session salt + the server's own proof
 local hs = post(API_URL .. "/api/v1/handshake", { script_id = SCRIPT_ID, kh = kh })
@@ -196,7 +247,10 @@ end
 --    editing any field of it invalidates the proof.
 local proof = ""
 pcall(function()
-    proof = hmac256hex(key, "2t1cli|" .. table.concat({ nonce, SCRIPT_ID, hwid, executor }, "|"))
+    proof = hmac256hex(
+        key,
+        "2t1cli|" .. table.concat({ nonce, SCRIPT_ID, hwid, executor, deviceToken, envFp }, "|")
+    )
 end)
 
 local data = post(API_URL .. "/api/v1/auth", {
@@ -204,6 +258,8 @@ local data = post(API_URL .. "/api/v1/auth", {
     kh = kh,
     hwid = hwid,
     executor = executor,
+    device = deviceToken,
+    env = envFp,
     nonce = nonce,
     proof = proof,
 })

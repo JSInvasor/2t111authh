@@ -37,6 +37,17 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_keys_reseller ON keys(reseller_id)');
 ensureColumn('admins', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('resellers', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
 
+// Device identity beyond the executor's client id, which has public spoofers.
+// device_token is a random value the loader persists to the executor's own
+// filesystem: it survives a spoofed client id and a reinstall of the game, and
+// is lost only when the user wipes the executor's workspace.
+ensureColumn('keys', 'device_token', 'TEXT');
+// Hash of what the client's environment looked like the first time this key
+// authenticated (trust on first use). A change means hooks appeared, the
+// executor was swapped, or someone else is using the key.
+ensureColumn('keys', 'env_fp', 'TEXT');
+ensureColumn('keys', 'env_fp_changes', 'INTEGER NOT NULL DEFAULT 0');
+
 // keyHash() of the key value — how a loader names its key on the wire without
 // sending it. Backfilled here so databases created before the mutual-auth
 // protocol keep working without a manual migration step.

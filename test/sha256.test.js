@@ -144,10 +144,16 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
     serverProof(f)
   );
 
-  // client proof — sent with /auth.
+  // client proof — sent with /auth, covering the device token and environment
+  // fingerprint so neither can be rewritten in flight.
+  const extra = { device: 'a1b2c3d4e5f60718', env: 'ff00ff00ff00ff00' };
   assert.strictEqual(
-    hex('HM', f.key, '2t1cli|' + [f.nonce, f.scriptId, f.hwid, f.executor].join('|')),
-    clientProof(f)
+    hex(
+      'HM',
+      f.key,
+      '2t1cli|' + [f.nonce, f.scriptId, f.hwid, f.executor, extra.device, extra.env].join('|')
+    ),
+    clientProof({ ...f, ...extra })
   );
 
   // report proof — sent with /report.

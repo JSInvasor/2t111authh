@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS keys (
   value            TEXT NOT NULL UNIQUE,
   script_id        TEXT NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
   hwid             TEXT,                             -- bound hardware id (NULL until first use)
+  device_token     TEXT,                             -- loader-persisted device id; survives a spoofed client id
+  env_fp           TEXT,                             -- client environment hash, pinned on first use
+  env_fp_changes   INTEGER NOT NULL DEFAULT 0,       -- how often that environment has changed since
   status           TEXT NOT NULL DEFAULT 'active',   -- active | banned | paused
   note             TEXT NOT NULL DEFAULT '',
   discord_id       TEXT,

@@ -217,6 +217,31 @@ POST /api/v1/heartbeat { lease, n, beat }     beat = HMAC(key, 2t1hb|lease|n)
   yakalanan bir beat iptal edilmiş bir oturumu ayakta tutamaz.
 - **Çok cihazlı satış** — `LEASE_MAX_PER_KEY` ile 1 key = N eşzamanlı oturum.
 
+### Risk skoru (ikili oto-ban yerine)
+
+Eskiden her otomatik ban **tek sinyal genişliğindeydi**: N HWID'i aş → ban. N IP'yi aş →
+ban. N rapor → ban. Bunların hepsi gerçek müşterilerin yaptığı şeylerde tetikleniyor —
+ağ değiştiren telefon, yeniden kurulum, kullanıcının kendi ikinci cihazı. Ve **yanlışlıkla
+banlanmış bir ödeme yapan müşteri, fazladan bir oturum kapmış bir korsandan çok daha
+pahalıdır.** Bu ürünleri ticari olarak öldüren şey korsanlık değil, bu asimetridir.
+
+Sinyaller artık tek tek tetik çekmiyor, **0-100 arası bir skorda toplanıyor**:
+
+| Faktör          | Tavan | Ne ölçer                                                       |
+| --------------- | ----- | -------------------------------------------------------------- |
+| `devices`       | 30    | Pencere içindeki farklı HWID sayısı                            |
+| `networks`      | 25    | Farklı **ağ** sayısı (/24, /64 — adres değil)                  |
+| `concurrency`   | 30    | Başka bir oturumu düşüren oturum sayısı — **en keskin sinyal** |
+| `tamper`        | 20    | İstemci bütünlük raporları (key sahipliği kanıtlanmış)         |
+| `environment`   | 15    | Ortam parmak izinin kaç kez değiştiği                          |
+
+- **Hiçbir faktör tek başına ban eşiğine ulaşamaz** (tavanlar `RISK_BAN_AT`'in altında) —
+  yani tek bir tuhaf-ama-masum davranış asla tek başına banlayamaz.
+- `RISK_WATCH_AT` (45) → panelde işaretle, servis vermeye devam et.
+  `RISK_BAN_AT` (85) → servis dışı bırak. Eşik bilinçli olarak yüksek.
+- Karar **açıklanabilir**: `risk.explain()` hangi faktörün kaç puan kattığını söyler,
+  yani "bu neden banlandı?" sorusunun bir cevabı var.
+
 ### Ölçekleme sınırı (bilinçli)
 
 Handshake ve lease durumu **bu process'in belleğinde** tutulur. Bu, **tek instance**
@@ -248,6 +273,14 @@ Handshake ve lease durumu **bu process'in belleğinde** tutulur. Bu, **tek insta
 - **HWID doğrulama** — charset + uzunluk kontrolü, `unknown`/`nil`/`0` gibi **placeholder
   HWID'ler reddedilir** (yoksa HWID toplayamayan her cihaz aynı key'i açardı), ilk bağlama
   **atomik** (iki cihaz aynı anda yarışıp ikisi birden giremez).
+- **Çift kimlikli cihaz eşleştirme** — `RbxAnalyticsService:GetClientId()`'nin herkese açık
+  spoofer'ları var; tek başına zayıf. Loader ayrıca executor'ın kendi dosya sistemine
+  **rastgele bir cihaz token'ı** yazıyor: spoof'lanmış client id'yi ve oyunun yeniden
+  kurulmasını atlatır, sadece workspace silinirse kaybolur. Eşleştirme kuralı bilinçli
+  olarak asimetrik:
+  - **çelişen** token → **reddet** (client id eşleşse bile — spoof'lanabilir olan taraf o)
+  - **eksik** token (workspace silinmiş, dosya API'si yok) → client id'ye düş
+  - `DEVICE_MATCH_REQUIRED=2` → ikisi de eşleşmek zorunda (yeniden kurulumu da kilitler)
 - **Key-paylaşımı** — pencere içinde çok fazla farklı **HWID** (`KEY_SHARE_MAX_HWIDS`) veya
   çok fazla farklı **IP** (`KEY_SHARE_MAX_IPS`) gören key otomatik banlanır. Sadece
   _başarılı_ çalıştırmalar sayılır — key'i bilen biri rastgele HWID yağdırıp başkasının
@@ -290,7 +323,11 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | `SESSION_ENCRYPTION`                        | `1`            | Payload'ı oturum anahtarıyla şifrele                                                                                             |
 | `OBFUSCATE_LOADER`                          | `1`            | Loader bootstrap'ını da şifreli gönder                                                                                           |
 | `TAMPER_REPORTS` / `TAMPER_REPORT_BAN`      | `1` / `0`      | İstemci raporlarını al / N rapordan sonra banla                                                                                  |
-| `KEY_SHARE_MAX_HWIDS` / `KEY_SHARE_MAX_IPS` | `0` / `0`      | Paylaşım oto-ban eşikleri (0 = kapalı)                                                                                           |
+| `RISK_SCORING`                              | `1`            | Sinyalleri tek tek tetik yerine 0-100 skorda topla                                                                               |
+| `RISK_WATCH_AT` / `RISK_BAN_AT`             | `45` / `85`    | Panelde işaretle / servis dışı bırak eşikleri                                                                                    |
+| `ENV_PINNING`                               | `1`            | İlk kullanımda ortam parmak izini pinle, değişimleri say                                                                         |
+| `DEVICE_MATCH_REQUIRED`                     | `1`            | Cihaz kimliğinin kaç tanesi eşleşmeli (2 = client id **ve** token)                                                               |
+| `KEY_SHARE_MAX_HWIDS` / `KEY_SHARE_MAX_IPS` | `0` / `0`      | Eski tarz sert paylaşım oto-ban eşikleri (0 = kapalı, risk skoru bunun yerini alır)                                              |
 | `KEY_SHARE_WINDOW_MS`                       | `3600000`      | Paylaşım/rapor penceresi                                                                                                         |
 | `KEY_RATE_MAX` / `KEY_RATE_WINDOW_MS`       | `0` / `60000`  | Key başına auth throttle (0 = kapalı)                                                                                            |
 | `HWID_MAX_LENGTH`                           | `128`          | Kabul edilen en uzun HWID                                                                                                        |
@@ -403,6 +440,8 @@ Test dosyaları:
 | Dosya                                                                    | Kapsam                                                                                              |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
 | `attacker.test.js`                                                       | **Saldırgan paketi** — her test bir saldırıyı oynar ve sistemin reddettiğini doğrular: düşman uç nokta, düz metne düşürme, imza soyma, tek byte çevirme, payload takası, replay, oturumlar arası taşıma |
+| `risk.test.js`                                                           | Risk skoru, ortam pinleme, bulanık cihaz eşleştirme — ağırlıklı olarak **yanlış pozitif** senaryoları (ağ değiştiren telefon, tek router'daki ev, yeniden kurulum) |
+| `lease.test.js` / `retention.test.js` / `net.test.js`                    | Canlı oturumlar & iptal / log rollup & saklama / ağ prefix eşleştirme                                |
 | `api.test.js`                                                            | Gerçek Express uygulaması üzerinden HTTP: loader teslimi, handshake→proof→auth, replay reddi, rapor |
 | `loader.test.js`                                                         | Gerçek loader bootstrap'ı bir Lua VM'de uçtan uca çalışır (anti-hook dahil)                         |
 | `sha256.test.js`                                                         | Saf Lua SHA-256/HMAC ↔ Node `crypto` (her iki bit-op yolu)                                          |

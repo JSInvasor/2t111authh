@@ -88,6 +88,8 @@ function makeServer(scriptId, { ip = CLIENT_IP, tamper = null } = {}) {
         scriptId: String(body.script_id),
         hwid: body.hwid,
         executor: body.executor,
+        device: body.device,
+        env: body.env,
       });
       if (body.proof !== expected) {
         return JSON.stringify({ success: false, message: 'Session verification failed' });
@@ -99,6 +101,8 @@ function makeServer(scriptId, { ip = CLIENT_IP, tamper = null } = {}) {
         hwid: body.hwid || null,
         ip,
         executor: body.executor || null,
+        device: body.device || null,
+        env: body.env || null,
         session: { salt: spent.salt, nonce: String(body.nonce) },
       });
       if (result.success) {

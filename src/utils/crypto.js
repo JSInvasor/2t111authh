@@ -100,10 +100,10 @@ function decoyServerProof(kh) {
  * exact request it is about to make. Editing any field of a captured request
  * invalidates it, and the key never appears in the request itself.
  */
-function clientProof({ key, nonce, scriptId, hwid, executor }) {
+function clientProof({ key, nonce, scriptId, hwid, executor, device = '', env = '' }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1cli|' + joinFields([nonce, scriptId, hwid, executor]))
+    .update('2t1cli|' + joinFields([nonce, scriptId, hwid, executor, device, env]))
     .digest('hex');
 }
 
