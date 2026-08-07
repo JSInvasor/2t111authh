@@ -351,6 +351,8 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | `KEY_SHARE_WINDOW_MS`                       | `3600000`      | Paylaşım/rapor penceresi                                                                                                         |
 | `KEY_RATE_MAX` / `KEY_RATE_WINDOW_MS`       | `0` / `60000`  | Key başına auth throttle (0 = kapalı)                                                                                            |
 | `HWID_MAX_LENGTH`                           | `128`          | Kabul edilen en uzun HWID                                                                                                        |
+| `BACKUP_DIR` / `BACKUP_KEEP`                | `data/backups` / `14` | Doğrulanmış yedeklerin yeri ve sayısı — bkz. DEPLOY.md                                                                    |
+| `BACKUP_INTERVAL_MS`                        | `86400000`     | Uygulama içi yedek periyodu (0 = kapalı, cron kullanıyorsan)                                                                     |
 | `EXECUTIONS_RETENTION_DAYS`                 | `14`           | Ham execution satırı saklama süresi; eskiler günlük rollup'a katlanıp silinir (0 = hiç silme)                                    |
 | `RETENTION_SWEEP_MS`                        | `3600000`      | Rollup/temizlik sıklığı                                                                                                          |
 | `HEARTBEAT`                                 | `1`            | Canlı oturum (lease) + heartbeat                                                                                                 |
@@ -463,6 +465,8 @@ Test dosyaları:
 | `attacker.test.js`                                                       | **Saldırgan paketi** — her test bir saldırıyı oynar ve sistemin reddettiğini doğrular: düşman uç nokta, düz metne düşürme, imza soyma, tek byte çevirme, payload takası, replay, oturumlar arası taşıma |
 | `risk.test.js`                                                           | Risk skoru, ortam pinleme, bulanık cihaz eşleştirme — ağırlıklı olarak **yanlış pozitif** senaryoları (ağ değiştiren telefon, tek router'daki ev, yeniden kurulum) |
 | `lease.test.js` / `retention.test.js` / `net.test.js`                    | Canlı oturumlar & iptal / log rollup & saklama / ağ prefix eşleştirme                                |
+| `audit.test.js`                                                          | Denetim kaydı: kim ne yaptı, ve kaydın **düzenlenemediği** (trigger'la append-only)                 |
+| `backup.test.js`                                                         | Yedekleme — ve **gerçek tatbikat**: yedek al, orijinali yok say, kopyadan aç, her key'in hâlâ auth olabildiğini doğrula |
 | `api.test.js`                                                            | Gerçek Express uygulaması üzerinden HTTP: loader teslimi, handshake→proof→auth, replay reddi, rapor |
 | `loader.test.js`                                                         | Gerçek loader bootstrap'ı bir Lua VM'de uçtan uca çalışır (anti-hook dahil)                         |
 | `sha256.test.js`                                                         | Saf Lua SHA-256/HMAC ↔ Node `crypto` (her iki bit-op yolu)                                          |

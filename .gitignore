@@ -16,3 +16,6 @@ data/*.db-shm
 Thumbs.db
 .vscode/
 .idea/
+
+# Verified database backups (runtime data, never in VCS).
+data/backups/

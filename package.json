@@ -1,7 +1,7 @@
 {
   "name": "2t1auth",
   "version": "1.0.0",
-  "description": "Luarmor-style script authentication & licensing system for Roblox — Auth API + Lua loader",
+  "description": "Luarmor-style script authentication & licensing system for Roblox \u2014 Auth API + Lua loader",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -12,7 +12,8 @@
     "bot:register": "node bot/register.js",
     "test": "node --test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "backup": "node scripts/backup.js"
   },
   "keywords": [
     "roblox",

@@ -152,7 +152,50 @@ sudo systemctl daemon-reload && sudo systemctl enable --now 2t1auth-bot
 | Kod güncelle | Adım 2'yi tekrarla → `cd /opt/2t1auth && sudo -u 2t1auth npm install --omit=dev` → `sudo systemctl restart 2t1auth` |
 | Dashboard eskimiş görünürse | Cloudflare → Caching → **Purge Everything** |
 
-**Yedekleme:** tek dosya — `/opt/2t1auth/data/2t1auth.db` (WAL modunda; `.db`, `.db-wal`, `.db-shm` üçünü birlikte kopyala veya `sqlite3 ... ".backup"` kullan).
+## Yedekleme
+
+Bu veritabanını kaybetmek özel bir felaket: **aynı anda her müşteri kilitlenir** ve
+kimin ne aldığının kaydı da gider, yani elle geri koyamazsın bile.
+
+Uygulama varsayılan olarak günde bir kez kendi içinde yedek alıyor
+(`BACKUP_INTERVAL_MS`). Her yedek **alındıktan sonra açılıp okunuyor**: `integrity_check`
++ kaynaktaki satır sayılarıyla karşılaştırma. Doğrulamayı geçemeyen yedek, iyi bir yedek
+gibi durmasın diye **siliniyor**.
+
+```bash
+npm run backup              # al, doğrula, eskileri buda
+npm run backup -- --verify  # diskteki en yeni yedeği kontrol et
+npm run backup -- --verify /yol/dosya.db
+```
+
+Zamanlamayı cron'a vermek istersen `BACKUP_INTERVAL_MS=0` yap (yoksa iki kez çalışır):
+
+```cron
+17 4 * * *  cd /opt/2t1auth && /usr/bin/npm run backup >> /var/log/2t1auth-backup.log 2>&1
+```
+
+Script başarısızlıkta **non-zero** çıkıyor — cron mail'i / monitoring bunu görsün.
+Duyulmayan bir yedek hatası, yedek almamakla aynı şey.
+
+| Ayar                 | Varsayılan      | Ne yapar                                  |
+| -------------------- | --------------- | ----------------------------------------- |
+| `BACKUP_DIR`         | `data/backups`  | Yedeklerin yeri (**farklı diske/host'a al**) |
+| `BACKUP_KEEP`        | `14`            | Kaç yedek saklanır                        |
+| `BACKUP_INTERVAL_MS` | `86400000`      | Uygulama içi periyot (0 = kapalı)         |
+
+### Geri dönüş (ve tatbikatı)
+
+```bash
+sudo systemctl stop 2t1auth
+sudo -u 2t1auth cp /opt/2t1auth/data/backups/2t1auth-<tarih>.db /opt/2t1auth/data/2t1auth.db
+sudo -u 2t1auth rm -f /opt/2t1auth/data/2t1auth.db-wal /opt/2t1auth/data/2t1auth.db-shm
+sudo systemctl start 2t1auth
+```
+
+> **Ayda bir gerçekten dene.** Denenmemiş yedek, yedek değil; sadece bir varsayım.
+> `test/backup.test.js` bu tatbikatı otomatik yapıyor (yedek al → orijinali yok say →
+> kopyadan aç → her key'in hâlâ auth olabildiğini doğrula), ama üretim diskinde de
+> bir kez yapmadan güvenme.
 
 ## Sorun giderme
 

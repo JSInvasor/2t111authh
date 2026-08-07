@@ -20,6 +20,7 @@ const resellerRouter = require('./routes/reseller');
 const { overview } = require('./services/stats');
 const retention = require('./services/retention');
 const audit = require('./services/audit');
+const backup = require('./services/backup');
 
 // Fail fast (in production) on an insecure/incomplete configuration.
 enforceConfig();
@@ -27,6 +28,10 @@ enforceConfig();
 // Fold old execution rows into the daily rollup on a timer, so the table the
 // hot path reads stays small instead of growing for the life of the install.
 retention.start();
+
+// Verified backups on a timer. Set BACKUP_INTERVAL_MS=0 when cron owns the
+// schedule instead (see DEPLOY.md), so they don't run twice.
+backup.start();
 
 const app = express();
 

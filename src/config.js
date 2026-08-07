@@ -89,6 +89,18 @@ const config = {
   // Auto-ban a key after N client-side tamper reports in the sharing window (0 = off).
   tamperReportBan: int(process.env.TAMPER_REPORT_BAN, 0),
 
+  // ------------------------------ Backups ------------------------------
+  // Losing the database locks out every customer at once AND destroys the record
+  // of who bought what, so it cannot be reconstructed by hand. Every backup is
+  // read back and checked before it counts.
+  backupDir: process.env.BACKUP_DIR
+    ? path.resolve(process.cwd(), process.env.BACKUP_DIR)
+    : path.join(__dirname, '..', 'data', 'backups'),
+  backupKeep: int(process.env.BACKUP_KEEP, 14, { min: 1 }),
+  // In-process schedule. 0 turns it off — use it when cron owns the schedule
+  // instead (see DEPLOY.md), so backups don't run twice.
+  backupIntervalMs: int(process.env.BACKUP_INTERVAL_MS, 86400000),
+
   // ----------------------------- Retention -----------------------------
   // Days of raw execution rows to keep. Older days are folded into the daily
   // rollup and deleted — the auth checks only ever look back an hour, so
