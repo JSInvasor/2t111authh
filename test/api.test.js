@@ -19,7 +19,7 @@ const { once } = require('node:events');
 
 const scripts = require('../src/services/scripts');
 const keys = require('../src/services/keys');
-const { keyHash, serverProof, clientProof, reportProof, responseProof } = require('../src/utils/crypto');
+const { keyHash, serverProof, clientProof, reportProof, beatProof, responseProof } = require('../src/utils/crypto');
 const { server } = require('../src/index');
 
 const HWID = 'TEST-DEVICE-0001';
@@ -167,9 +167,10 @@ test('a complete handshake → proof → auth flow delivers a signed session pay
   assert.ok(res.body.success);
   assert.strictEqual(res.body.enc, 'session');
   assert.ok(typeof res.body.script === 'string' && res.body.script.length > 0);
+  assert.ok(res.body.lease, 'no live session was opened');
   assert.strictEqual(
     res.body.resp_proof,
-    responseProof({ key, nonce: body.nonce, enc: 'session', script: res.body.script }),
+    responseProof({ key, nonce: body.nonce, enc: 'session', lease: res.body.lease, script: res.body.script }),
     'the response was not signed under the key'
   );
 });
@@ -351,6 +352,43 @@ test('a report replayed on a spent nonce is dropped', async () => {
 
   await post('/api/v1/report', report);
   assert.strictEqual(reasonsFor(script.id).length, 1, 'a replayed report was counted twice');
+});
+
+/* ------------------------------ heartbeat ------------------------------ */
+
+test('a live session beats, and a ban ends it mid-flight', async () => {
+  const { script, key } = mk({ hwid_lock: 0 });
+  const { body } = await openSession(script, key);
+  const auth = await post('/api/v1/auth', body);
+  const id = auth.body.lease;
+  assert.ok(id, 'no lease issued');
+
+  const sendBeat = (n) =>
+    post('/api/v1/heartbeat', { lease: id, n, beat: beatProof({ key, lease: id, n }) });
+
+  assert.ok((await sendBeat(1)).body.success);
+  assert.ok((await sendBeat(2)).body.success);
+
+  // Replaying beat 2 is refused without killing the session.
+  assert.strictEqual((await sendBeat(2)).body.success, false);
+
+  // A beat nobody could compute without the key is refused outright.
+  const forged = await post('/api/v1/heartbeat', { lease: id, n: 9, beat: 'ff'.repeat(32) });
+  assert.strictEqual(forged.status, 401);
+
+  // Banning from the dashboard reaches the session already running.
+  const row = require('../src/services/keys').getKeyByValue(key);
+  require('../src/services/keys').updateKey(row.id, { status: 'banned' });
+
+  const after = await sendBeat(3);
+  assert.strictEqual(after.body.success, false);
+  assert.strictEqual(after.body.revoked, true);
+});
+
+test('an unknown lease is told to stop, not given an error to probe', async () => {
+  const res = await post('/api/v1/heartbeat', { lease: 'no-such-lease', n: 1, beat: 'ff'.repeat(32) });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.revoked, true);
 });
 
 /* ------------------------------- sessions ------------------------------- */

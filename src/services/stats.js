@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const lease = require('./lease');
 
 /** Aggregate analytics for a single script/project. */
 function scriptStats(scriptId, { sinceDays = 7 } = {}) {
@@ -86,7 +87,10 @@ function overview() {
     )
     .all(dayAgo);
 
-  return { totals, topScripts };
+  // Sessions actually running right now, as opposed to executions counted after
+  // the fact. This is the number that answers "how many people are using this
+  // at this moment", which the log alone could never say.
+  return { totals, topScripts, sessions: lease.stats() };
 }
 
 module.exports = { scriptStats, overview };

@@ -6,12 +6,14 @@ const scripts = require('../services/scripts');
 const keys = require('../services/keys');
 const { authenticate, reportTamper } = require('../services/auth');
 const nonce = require('../services/nonce');
+const lease = require('../services/lease');
 const { renderLoader } = require('../services/bootstrap');
 const {
   serverProof,
   decoyServerProof,
   clientProof,
   reportProof,
+  beatProof,
   responseProof,
   safeEqual,
 } = require('../utils/crypto');
@@ -168,10 +170,47 @@ router.post('/api/v1/auth', authLimiter, jsonPublic, (req, res) => {
       key: row.value,
       nonce: session ? session.nonce : '',
       enc: payload.enc,
+      lease: payload.lease,
       script: payload.script,
     });
   }
   res.status(result.success ? 200 : code || 400).json(payload);
+});
+
+/**
+ * POST /api/v1/heartbeat
+ * Public (rate limited). Keeps a live session alive and tells the loader whether
+ * it is still allowed to run.
+ *
+ * This is what makes a ban reach a script that is ALREADY running: without it,
+ * revoking a key only stopped the next auth, and the copy in flight kept going
+ * until the user closed the game. It is also where key sharing stops being a
+ * guess — two live leases on one key is one account in two places right now.
+ */
+router.post('/api/v1/heartbeat', authLimiter, jsonPublic, (req, res) => {
+  if (!config.heartbeat) return res.status(404).json({ success: false, message: 'Not found' });
+
+  const body = req.body || {};
+  const seat = lease.get(String(body.lease || ''));
+  // A dead lease reads the same as a revoked one to the client: stop running.
+  if (!seat) return res.status(200).json({ success: false, revoked: true, message: 'Session ended' });
+
+  const n = Number(body.n);
+  const row = keys.getKeyById(seat.keyId);
+  if (!row || row.status !== 'active' || (row.expires_at && row.expires_at < Math.floor(Date.now() / 1000))) {
+    lease.revokeKey(seat.keyId);
+    return res.status(200).json({ success: false, revoked: true, message: 'Key is no longer valid' });
+  }
+
+  const expected = beatProof({ key: row.value, lease: String(body.lease), n });
+  if (!safeEqual(String(body.beat || ''), expected)) {
+    return res.status(401).json({ success: false, message: 'Bad heartbeat' });
+  }
+
+  const accepted = lease.beat(String(body.lease), n);
+  if (!accepted.ok) return res.status(200).json({ success: false, revoked: true, message: 'Session ended' });
+
+  res.json({ success: true, beat_every: Math.floor(config.heartbeatIntervalMs / 1000) });
 });
 
 /**

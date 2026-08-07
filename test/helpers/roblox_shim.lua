@@ -121,3 +121,26 @@ end
 function identifyexecutor()
     return "synapse"
 end
+
+-- Executor scheduler. `task.spawn` captures the thread instead of running it, so
+-- a test can drive the loader's heartbeat loop deliberately (call __BEAT()) and
+-- the tests that don't care about heartbeats are unaffected by a loop that would
+-- otherwise never terminate. `task.wait` returns at once for the same reason.
+local _waits = 0
+task = {
+    spawn = function(fn) __BEAT = fn end,
+    -- Returns at once so a test can drive the loop, and hard-stops it after a
+    -- bounded number of turns so a server that never revokes can't hang a test.
+    wait = function()
+        _waits = _waits + 1
+        if _waits > 50 then error("beat limit", 0) end
+        return 0
+    end,
+}
+
+-- Executors expose a shared table for cross-script globals; the loader publishes
+-- its session state there.
+local _genv = {}
+function getgenv()
+    return _genv
+end

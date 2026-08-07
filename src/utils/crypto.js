@@ -120,14 +120,28 @@ function reportProof({ key, nonce, scriptId, reason }) {
 }
 
 /**
- * Signature over the auth response. Covers `enc` as well as the payload, so a
- * response cannot be downgraded from session-encrypted to plaintext, and the
- * payload cannot be swapped or edited in flight.
+ * A single heartbeat against a live lease. Keyed by the license key so it can't
+ * be forged by anything that merely watched one go past, and numbered so a
+ * captured beat can't be replayed to hold a revoked session open.
  */
-function responseProof({ key, nonce, enc, script }) {
+function beatProof({ key, lease, n }) {
   return crypto
     .createHmac('sha256', String(key))
-    .update('2t1res|' + joinFields([nonce, enc || '', script]))
+    .update('2t1hb|' + joinFields([lease, n]))
+    .digest('hex');
+}
+
+/**
+ * Signature over the auth response. Covers `enc` and the lease as well as the
+ * payload, so a response cannot be downgraded from session-encrypted to
+ * plaintext, cannot be stripped of its lease to dodge revocation, and cannot be
+ * swapped or edited in flight. `script` stays last because it is the only field
+ * whose contents are unconstrained.
+ */
+function responseProof({ key, nonce, enc, lease, script }) {
+  return crypto
+    .createHmac('sha256', String(key))
+    .update('2t1res|' + joinFields([nonce, enc || '', lease || '', script]))
     .digest('hex');
 }
 
@@ -154,6 +168,7 @@ module.exports = {
   decoyServerProof,
   clientProof,
   reportProof,
+  beatProof,
   responseProof,
   sessionKey,
 };

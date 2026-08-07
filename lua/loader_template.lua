@@ -221,9 +221,10 @@ end
 --    the HMAC, so a response cannot be downgraded to plaintext to make us run
 --    attacker-supplied Lua.
 local enc = tostring(data.enc or "")
+local leaseId = tostring(data.lease or "")
 local respExpect = ""
 pcall(function()
-    respExpect = hmac256hex(key, "2t1res|" .. table.concat({ nonce, enc, data.script }, "|"))
+    respExpect = hmac256hex(key, "2t1res|" .. table.concat({ nonce, enc, leaseId, data.script }, "|"))
 end)
 if #respExpect == 0 or tostring(data.resp_proof or "") ~= respExpect then
     return bail("resp_proof", "payload verification failed — refusing to run it.")
@@ -232,9 +233,52 @@ if REQUIRE_SESSION and enc ~= "session" then
     return bail("downgrade", "server did not session-encrypt the payload — refusing to run it.")
 end
 
--- 9) run the protected script. In session mode the payload is encrypted under a
---    key both sides derive independently; it is passed in as a vararg so it is
---    never written to a global.
+-- 9) keep the session alive. The server hands back a lease; we beat against it
+--    on an interval and it answers "keep going" or "you're revoked". This is
+--    what lets a ban reach a script that is already running, and what turns key
+--    sharing into a live signal instead of a guess about past log rows.
+--
+--    The flag lives on a shared global so the protected script can cooperate:
+--        if getgenv().__2t1 and getgenv().__2t1.revoked then return end
+--    Stopping the run outright is up to the script — nothing here can safely
+--    tear down connections it already made.
+local session = { revoked = false, lease = leaseId }
+if getgenv then getgenv().__2t1 = session end
+
+if #leaseId > 0 then
+    local beatEvery = tonumber(data.beat_every) or 60
+    local spawn = (task and task.spawn) or spawn
+    local wait = (task and task.wait) or wait
+
+    local function heartbeat()
+        local n = 0
+        while not session.revoked do
+            wait(beatEvery)
+            n = n + 1
+            local beat
+            local ok = pcall(function()
+                beat = hmac256hex(key, "2t1hb|" .. leaseId .. "|" .. tostring(n))
+            end)
+            if not ok then return end
+
+            local reply = post(API_URL .. "/api/v1/heartbeat", { lease = leaseId, n = n, beat = beat })
+            -- Only an explicit revocation stops us. A dropped request is just a
+            -- dropped request: the lease TTL covers several missed beats, and
+            -- killing a paying user's session over one timeout is worse than
+            -- letting a revoked one run until the next beat lands.
+            if reply and reply.revoked then
+                session.revoked = true
+                return warn("[2t1auth] " .. tostring(reply.message or "session revoked."))
+            end
+        end
+    end
+
+    if spawn then spawn(heartbeat) end
+end
+
+-- 10) run the protected script. In session mode the payload is encrypted under a
+--     key both sides derive independently; it is passed in as a vararg so it is
+--     never written to a global.
 local fn, err = loadChunk(data.script, "=2t1auth:" .. SCRIPT_ID)
 if not fn then
     return bail("compile_failed", "failed to compile script: " .. tostring(err))

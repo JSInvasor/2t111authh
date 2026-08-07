@@ -2,6 +2,7 @@
 
 const db = require('../db');
 const config = require('../config');
+const lease = require('./lease');
 const { generateKey, keyHash } = require('../utils/crypto');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -94,6 +95,11 @@ function updateKey(id, fields = {}) {
   if (!sets.length) return getKeyById(id);
   vals.push(id);
   db.prepare(`UPDATE keys SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+
+  // Taking a key out of service ends its live sessions too. Without this a ban
+  // only stopped the NEXT auth, and the copy already running carried on until
+  // the user happened to close the game.
+  if (fields.status && fields.status !== 'active') lease.revokeKey(id);
   return getKeyById(id);
 }
 
@@ -130,6 +136,7 @@ function userResetHwid(key, script) {
 }
 
 function deleteKey(id) {
+  lease.revokeKey(id);
   return db.prepare('DELETE FROM keys WHERE id = ?').run(id).changes > 0;
 }
 

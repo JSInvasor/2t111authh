@@ -115,7 +115,15 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
   // Guards against the two sides drifting apart: same joined message, same key.
   // Every derivation in the protocol is pinned here — if any one of them drifts,
   // the corresponding step fails closed and nobody can authenticate at all.
-  const { keyHash, serverProof, clientProof, reportProof, responseProof, sessionKey } = require('../src/utils/crypto');
+  const {
+    keyHash,
+    serverProof,
+    clientProof,
+    reportProof,
+    beatProof,
+    responseProof,
+    sessionKey,
+  } = require('../src/utils/crypto');
   const L = luaState('bit32 = nil');
   const f = {
     salt: 'SALT-abc123',
@@ -151,10 +159,14 @@ test('the loader hashes exactly the fields the server does', { skip }, () => {
 
   // resp_proof — the loader verifies this before running the payload.
   const script = 'return 42';
+  const lease = 'LEASE-abc';
   assert.strictEqual(
-    hex('HM', f.key, '2t1res|' + [f.nonce, 'session', script].join('|')),
-    responseProof({ ...f, enc: 'session', script })
+    hex('HM', f.key, '2t1res|' + [f.nonce, 'session', lease, script].join('|')),
+    responseProof({ ...f, enc: 'session', lease, script })
   );
+
+  // heartbeat — one beat against a live lease.
+  assert.strictEqual(hex('HM', f.key, '2t1hb|' + [lease, 3].join('|')), beatProof({ ...f, lease, n: 3 }));
 
   // session key — the cipher key both sides derive independently.
   const luaKey = call(L, 'RAW', [f.salt, f.nonce, f.scriptId, f.key, f.hwid].join('|'));

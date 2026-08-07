@@ -10,9 +10,10 @@ const path = require('node:path');
 
 const keys = require('../../src/services/keys');
 const nonce = require('../../src/services/nonce');
+const lease = require('../../src/services/lease');
 const { authenticate } = require('../../src/services/auth');
 const { rc4 } = require('../../src/services/obfuscator');
-const { serverProof, clientProof, responseProof } = require('../../src/utils/crypto');
+const { serverProof, clientProof, beatProof, responseProof } = require('../../src/utils/crypto');
 
 let fengari = null;
 try {
@@ -105,10 +106,27 @@ function makeServer(scriptId, { ip = CLIENT_IP, tamper = null } = {}) {
           key: row.value,
           nonce: String(body.nonce),
           enc: result.enc,
+          lease: result.lease,
           script: result.script,
         });
       }
       return JSON.stringify(result);
+    }
+
+    if (url.endsWith('/api/v1/heartbeat')) {
+      const rec = lease.get(String(body.lease || ''));
+      if (!rec) return JSON.stringify({ success: false, revoked: true, message: 'Session ended' });
+
+      const row = keys.getKeyById(rec.keyId);
+      if (!row || row.status !== 'active') {
+        return JSON.stringify({ success: false, revoked: true, message: 'Key is no longer valid' });
+      }
+      const expected = beatProof({ key: row.value, lease: String(body.lease), n: Number(body.n) });
+      if (body.beat !== expected) return JSON.stringify({ success: false, message: 'Bad heartbeat' });
+
+      const ok = lease.beat(String(body.lease), Number(body.n));
+      if (!ok.ok) return JSON.stringify({ success: false, revoked: true, message: 'Session ended' });
+      return JSON.stringify({ success: true, beat_every: 60 });
     }
 
     if (url.endsWith('/api/v1/report')) {
@@ -167,10 +185,26 @@ function runLoader(loaderLua, { scriptKey, server, globals = '' }) {
     return v;
   };
 
+  /**
+   * Run the loader's heartbeat loop. The shim captures it instead of scheduling
+   * it (see roblox_shim.lua), so a test drives it deliberately; it returns when
+   * the server revokes the session or the shim's turn limit trips.
+   */
+  const beat = () => {
+    lua.lua_getglobal(L, to_luastring('__BEAT'));
+    if (lua.lua_isnil(L, -1)) {
+      lua.lua_pop(L, 1);
+      return false;
+    }
+    lua.lua_pcall(L, 0, 0, 0); // errors are the turn limit; the assertions judge the outcome
+    return true;
+  };
+
   return {
     warnings,
     result: readGlobal('__R'),
     globals: readGlobal,
+    beat,
     reports: server.reports,
     seen: server.seen,
   };

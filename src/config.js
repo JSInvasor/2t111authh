@@ -89,6 +89,20 @@ const config = {
   // Auto-ban a key after N client-side tamper reports in the sharing window (0 = off).
   tamperReportBan: int(process.env.TAMPER_REPORT_BAN, 0),
 
+  // ------------------------------ Leases -------------------------------
+  // A successful auth opens a live session the loader beats against. Gives
+  // revocation that reaches an already-running script, and turns key sharing
+  // from a guess about past log rows into "two seats are in use right now".
+  heartbeat: bool(process.env.HEARTBEAT, true),
+  // How often the loader is told to beat.
+  heartbeatIntervalMs: int(process.env.HEARTBEAT_INTERVAL_MS, 60000, { min: 5000, max: 3600000 }),
+  // A lease dies this long after its last beat. Keep it a small multiple of the
+  // interval so a couple of dropped requests don't kill a healthy session.
+  leaseTtlMs: int(process.env.LEASE_TTL_MS, 210000, { min: 10000 }),
+  // Concurrent sessions one key may hold. Going over evicts the oldest rather
+  // than refusing the newest, so a crashed client can rejoin at once.
+  leaseMaxPerKey: int(process.env.LEASE_MAX_PER_KEY, 1, { min: 1 }),
+
   // Key-sharing: auto-ban a key seen from more than N distinct HWIDs in the window (0 = off).
   keyShareMaxHwids: int(process.env.KEY_SHARE_MAX_HWIDS, 0),
   // …or from more than N distinct IPs in the same window (0 = off). Catches sharing

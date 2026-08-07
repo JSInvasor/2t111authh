@@ -95,6 +95,42 @@ test('the loader sends a normalised HWID, never a placeholder', { skip }, () => 
   assert.ok(auth.body.hwid.length <= 128);
 });
 
+test('the loader beats against its lease and stops when revoked', { skip }, () => {
+  const lease = require('../src/services/lease');
+  const { script, key } = mkScript({ hwid_lock: 0 });
+  const server = makeServer(script.id);
+  const run = runLoader(renderLoader(script, { obfuscate: false }), { scriptKey: key.value, server });
+  assert.strictEqual(run.result, 42, run.warnings.join(' | '));
+
+  // Ban the key the way the dashboard would, then let the loader beat.
+  keys.updateKey(key.id, { status: 'banned' });
+  assert.ok(run.beat(), 'the loader never scheduled a heartbeat');
+
+  const beats = server.seen.filter((r) => r.url.endsWith('/heartbeat'));
+  assert.strictEqual(beats.length, 1, 'the loader kept beating after being revoked');
+  assert.strictEqual(beats[0].response.revoked, true);
+  assert.match(run.warnings.join(' '), /session ended|revoked|no longer valid/i);
+  assert.strictEqual(lease.countFor(key.id), 0);
+});
+
+test('a healthy session keeps beating with increasing counters', { skip }, () => {
+  const { script, key } = mkScript({ hwid_lock: 0 });
+  const server = makeServer(script.id);
+  const run = runLoader(renderLoader(script, { obfuscate: false }), { scriptKey: key.value, server });
+  assert.strictEqual(run.result, 42, run.warnings.join(' | '));
+
+  run.beat(); // runs until the shim's turn limit, since nothing revokes it
+
+  const beats = server.seen.filter((r) => r.url.endsWith('/heartbeat'));
+  assert.ok(beats.length > 3, `expected a sustained beat, saw ${beats.length}`);
+  // The shim's JSON encoder stringifies every value; the route reads it with
+  // Number(), and a real executor sends a JSON number either way.
+  assert.ok(
+    beats.every((b, i) => Number(b.body.n) === i + 1 && b.response.success),
+    'beat counters did not increase monotonically'
+  );
+});
+
 test('a hooked HTTP function stops the run and reports it', { skip }, () => {
   const { script, key } = mkScript();
   const server = makeServer(script.id);

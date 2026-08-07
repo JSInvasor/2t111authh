@@ -4,6 +4,7 @@ const db = require('../db');
 const config = require('../config');
 const { getScript } = require('./scripts');
 const { obfuscate } = require('./obfuscator');
+const lease = require('./lease');
 const { sessionKey } = require('../utils/crypto');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -156,6 +157,7 @@ function authenticate({ scriptId, key, hwid, ip, executor, session = null }) {
   const shared = sharingViolation(row.id, { hwid, ip });
   if (shared) {
     db.prepare("UPDATE keys SET status = 'banned' WHERE id = ?").run(row.id);
+    lease.revokeKey(row.id);
     logExecution({ ...ctx, keyId: row.id, success: false, reason: shared });
     return { success: false, code: 403, message: 'Key banned — sharing detected' };
   }
@@ -165,6 +167,18 @@ function authenticate({ scriptId, key, hwid, ip, executor, session = null }) {
   logExecution({ ...ctx, keyId: row.id, success: true, reason: 'ok' });
 
   const result = { success: true, version: script.version, expires_at: row.expires_at };
+
+  // Open a live session. Evicting a seat means this key was already in use
+  // somewhere else a moment ago — recorded as its own signal, since it is far
+  // more specific than counting distinct HWIDs after the fact.
+  if (config.heartbeat) {
+    const seat = lease.open({ keyId: row.id, scriptId, hwid: hwid || null, ip: ip || null });
+    result.lease = seat.lease;
+    result.beat_every = Math.floor(config.heartbeatIntervalMs / 1000);
+    if (seat.evicted > 0) {
+      logExecution({ ...ctx, keyId: row.id, success: false, reason: 'concurrent_session' });
+    }
+  }
 
   if (!script.obfuscate) {
     result.script = script.source;

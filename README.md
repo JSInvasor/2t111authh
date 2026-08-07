@@ -191,6 +191,36 @@ loader                                   sunucu
   isteğin **hiçbir alanı** (hwid, executor) değiştirilip yeniden gönderilemez.
 - **Key oracle yok** — bilinmeyen bir `kh` için handshake, aynı şekle sahip bir **decoy**
   proof döner; cevaba bakarak bir key'in var olup olmadığı anlaşılamaz.
+
+### Canlı oturumlar (lease + heartbeat)
+
+Auth eskiden **tek atımlıktı**: bir kez doğrula, script'i al, bir daha görüşülmez. Key'i
+banlamak yalnızca **bir sonraki** auth'u durduruyordu; o an çalışan kopya kullanıcı oyunu
+kapatana kadar çalışmaya devam ediyordu. Ve "bu key paylaşılıyor mu?" sorusu ancak
+log'daki farklı HWID'leri sayarak **tahmin** edilebiliyordu — ki bu, wifi'dan mobil veriye
+geçen dürüst kullanıcıyı da bir key'i paylaşan iki kişi kadar kolay işaretler.
+
+Başarılı auth artık bir **lease** açıyor; loader periyodik olarak ona vuruyor:
+
+```
+POST /api/v1/heartbeat { lease, n, beat }     beat = HMAC(key, 2t1hb|lease|n)
+  → { success: true }                          devam
+  → { success: false, revoked: true }          dur
+```
+
+- **Çalışan script'e ulaşan iptal** — ban/pause/silme, o anda açık oturumları da düşürür.
+- **Paylaşım artık tahmin değil** — bir key'de iki canlı lease, geçmişe dair istatistiksel
+  bir çıkarım değil, **şu anda** iki yerde açık bir hesap demek. Limit aşılınca **en eski**
+  oturum düşürülür (yeni gelen reddedilmez), böylece oyunu çöken kullanıcı anında geri
+  girebilir; asıl sinyal biriken **tahliye** sayısıdır (`concurrent_session`).
+- **Beat sahtelenemez ve tekrarlanamaz** — key ile HMAC'li ve sayacı kesin artan, yani
+  yakalanan bir beat iptal edilmiş bir oturumu ayakta tutamaz.
+- **Çok cihazlı satış** — `LEASE_MAX_PER_KEY` ile 1 key = N eşzamanlı oturum.
+
+> Not: sunucu tarafı garanti kesindir (iptal edilen key yeniden auth olamaz, lease ölür).
+> Çalışmakta olan script'i **süreç içinde durdurmak** ise iş birliğine dayanır: loader
+> `getgenv().__2t1.revoked` bayrağını set eder, script bunu kontrol edip kendi kapanır.
+> Hiçbir şey, script'in çoktan kurduğu bağlantıları güvenle söküp atamaz.
 - **Oturum anahtarlı teslimat** — payload'ın RC4 anahtarı artık payload'ın içinde
   **taşınmıyor**; iki taraf da `SHA256(salt|nonce|script|key|hwid)` ile bağımsız türetiyor.
   Proxy log'una düşen ya da Discord'da paylaşılan bir cevap, o oturum olmadan **çözülemez**.
@@ -247,6 +277,10 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | `KEY_SHARE_WINDOW_MS`                       | `3600000`      | Paylaşım/rapor penceresi                                                                                                         |
 | `KEY_RATE_MAX` / `KEY_RATE_WINDOW_MS`       | `0` / `60000`  | Key başına auth throttle (0 = kapalı)                                                                                            |
 | `HWID_MAX_LENGTH`                           | `128`          | Kabul edilen en uzun HWID                                                                                                        |
+| `HEARTBEAT`                                 | `1`            | Canlı oturum (lease) + heartbeat                                                                                                 |
+| `HEARTBEAT_INTERVAL_MS` / `LEASE_TTL_MS`    | `60000` / `210000` | Beat aralığı / lease ömrü (birkaç kaçan beat'i tolere edecek kadar uzun tut)                                                  |
+| `LEASE_MAX_PER_KEY`                         | `1`            | Key başına eşzamanlı oturum — çok cihazlı satış için artır                                                                       |
+| `LOADER_RATE_MAX` / `LOADER_RATE_WINDOW_MS` | `20` / `60000` | `/loader/<id>.lua` rate limit                                                                                                     |
 | `TRUST_PROXY`                               | `1`            | Önündeki proxy sayısı — **doğrudan açıksan 0 yap**, yoksa istemci `X-Forwarded-For` uydurup rate limit'i ve IP bağlamayı atlatır |
 
 > **Sınırlar (dürüstçe):** Bunlar statik dump'ı, replay'i ve payload paylaşımını ciddi
@@ -279,6 +313,7 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | `GET`  | `/loader/:scriptId.lua` | O script için Lua bootstrap'ı döndürür (şifreli, her istekte benzersiz)              |
 | `POST` | `/api/v1/handshake`     | `{ script_id, kh }` → tek kullanımlık `{ nonce, salt, ttl, server_proof }`            |
 | `POST` | `/api/v1/auth`          | `{ script_id, kh, hwid, executor, nonce, proof }` → doğrula & imzalı script döndür    |
+| `POST` | `/api/v1/heartbeat`     | `{ lease, n, beat }` → oturumu canlı tut / iptal edildiyse `{ revoked: true }`        |
 | `POST` | `/api/v1/report`        | `{ script_id, kh, hwid, executor, reason, nonce, proof }` → istemci tamper sinyali    |
 
 ### Admin (`Authorization: Bearer <ADMIN_API_KEY>`)
