@@ -89,6 +89,14 @@ const config = {
   // Auto-ban a key after N client-side tamper reports in the sharing window (0 = off).
   tamperReportBan: int(process.env.TAMPER_REPORT_BAN, 0),
 
+  // ----------------------------- Retention -----------------------------
+  // Days of raw execution rows to keep. Older days are folded into the daily
+  // rollup and deleted — the auth checks only ever look back an hour, so
+  // nothing older needs to stay in the table they read on every request.
+  // 0 disables pruning entirely (the old behaviour: keep everything forever).
+  executionsRetentionDays: int(process.env.EXECUTIONS_RETENTION_DAYS, 14),
+  retentionSweepMs: int(process.env.RETENTION_SWEEP_MS, 3600000, { min: 60000 }),
+
   // ------------------------------ Leases -------------------------------
   // A successful auth opens a live session the loader beats against. Gives
   // revocation that reaches an already-running script, and turns key sharing

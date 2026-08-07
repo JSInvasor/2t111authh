@@ -27,6 +27,30 @@ test('a malformed numeric env falls back instead of poisoning everything', () =>
   assert.strictEqual(int('60s', 20000), 60);
 });
 
+test('a multi-worker deployment is refused, not silently half-broken', () => {
+  // Handshakes and leases live in this process's memory, so a second worker
+  // makes auth fail for whoever's handshake landed on the other one — an
+  // intermittent failure that looks like anything but the deploy topology.
+  const saved = { ...process.env };
+  try {
+    process.env.NODE_APP_INSTANCE = '2';
+    assert.match(checkConfig().errors.join(' '), /multi-process|instance 2/i);
+    delete process.env.NODE_APP_INSTANCE;
+
+    process.env.WEB_CONCURRENCY = '4';
+    assert.match(checkConfig().errors.join(' '), /workers/i);
+    delete process.env.WEB_CONCURRENCY;
+
+    // Worker 0 of one, or nothing set at all, is the ordinary single-process case.
+    process.env.NODE_APP_INSTANCE = '0';
+    process.env.WEB_CONCURRENCY = '1';
+    assert.strictEqual(checkConfig().errors.length, 0);
+  } finally {
+    for (const k of ['NODE_APP_INSTANCE', 'WEB_CONCURRENCY', 'pm_id', 'instances']) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
 test('numeric envs are clamped to their sane range', () => {
   assert.strictEqual(int('-5', 10, { min: 0 }), 0);
   assert.strictEqual(int('999999', 10, { min: 0, max: 100 }), 100);

@@ -13,8 +13,14 @@
 
 const crypto = require('crypto');
 const config = require('../config');
+const { netPrefix, sameNetwork } = require('../utils/net');
 
 const store = new Map(); // nonce -> { scriptId, ip, kh, salt, expires }
+// Exact address, deliberately: the per-host cap wants the FINEST granularity it
+// can get, or every client behind one carrier NAT would share a single budget.
+// The binding check below wants the opposite (see consume) — coarse enough to
+// survive address churn. Both choices point the same way: don't punish someone
+// for the address their carrier happened to give them.
 const perIp = new Map(); // ip -> live nonce count
 
 function bumpIp(ip, delta) {
@@ -92,7 +98,9 @@ function consume(nonce, { scriptId, ip = null, kh = null } = {}) {
 
   if (rec.expires < Date.now()) return { ok: false, reason: 'expired_nonce' };
   if (rec.scriptId !== String(scriptId)) return { ok: false, reason: 'nonce_script_mismatch' };
-  if (rec.ip && String(ip || '') !== rec.ip) return { ok: false, reason: 'nonce_ip_mismatch' };
+  // Same network, not same address — see utils/net.js. An exact match locked out
+  // every phone that changed cell or carrier NAT between the two requests.
+  if (rec.ip && !sameNetwork(ip, rec.ip)) return { ok: false, reason: 'nonce_ip_mismatch' };
   // A handshake opened for one key may not be spent for another, so a nonce
   // harvested while probing with a key you own can't be used to carry someone
   // else's key through.

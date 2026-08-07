@@ -54,6 +54,19 @@ CREATE INDEX IF NOT EXISTS idx_exec_created ON executions(created_at);
 -- walk the whole window — ~114ms per auth at 300k rows vs ~0.06ms with it.
 CREATE INDEX IF NOT EXISTS idx_exec_key_time ON executions(key_id, created_at);
 
+-- Daily rollup of `executions`. Raw rows are the source of truth only for the
+-- recent window the auth checks actually read (sharing/throttle look back an
+-- hour); everything older is folded in here and deleted, so the table that grows
+-- fastest stops growing without losing the history the dashboard charts.
+CREATE TABLE IF NOT EXISTS executions_daily (
+  script_id    TEXT NOT NULL,
+  day          INTEGER NOT NULL,           -- epoch day (created_at / 86400)
+  total        INTEGER NOT NULL DEFAULT 0,
+  successes    INTEGER NOT NULL DEFAULT 0,
+  unique_hwids INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (script_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS admins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT NOT NULL UNIQUE,

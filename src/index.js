@@ -18,9 +18,14 @@ const keysRouter = require('./routes/keys');
 const resellersRouter = require('./routes/resellers');
 const resellerRouter = require('./routes/reseller');
 const { overview } = require('./services/stats');
+const retention = require('./services/retention');
 
 // Fail fast (in production) on an insecure/incomplete configuration.
 enforceConfig();
+
+// Fold old execution rows into the daily rollup on a timer, so the table the
+// hot path reads stays small instead of growing for the life of the install.
+retention.start();
 
 const app = express();
 

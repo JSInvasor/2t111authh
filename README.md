@@ -217,6 +217,20 @@ POST /api/v1/heartbeat { lease, n, beat }     beat = HMAC(key, 2t1hb|lease|n)
   yakalanan bir beat iptal edilmiş bir oturumu ayakta tutamaz.
 - **Çok cihazlı satış** — `LEASE_MAX_PER_KEY` ile 1 key = N eşzamanlı oturum.
 
+### Ölçekleme sınırı (bilinçli)
+
+Handshake ve lease durumu **bu process'in belleğinde** tutulur. Bu, **tek instance**
+çalıştırman gerektiği anlamına gelir:
+
+- PM2 cluster mode, `WEB_CONCURRENCY > 1`, birden fazla replica → handshake bir
+  process'te açılır, auth diğerine düşer ve kullanıcı "invalid or expired session" alır.
+  Rastgele görünen, deploy topolojisi dışında her şeye yıkılan türden bir hata.
+- Bu yüzden `validateConfig` bunu **başlangıçta tespit edip hata veriyor** (PM2 `pm_id`,
+  `NODE_APP_INSTANCE`, `WEB_CONCURRENCY`, `instances`) — üretimde keşfetmek yerine.
+- Yatay ölçeklemek istiyorsan `src/services/nonce.js` ve `src/services/lease.js`
+  içindeki `Map`'leri paylaşımlı bir store'a (Redis) taşımak gerekir; ikisi de küçük ve
+  kendi içinde kapalı. Şimdilik dikey ölçekle.
+
 > Not: sunucu tarafı garanti kesindir (iptal edilen key yeniden auth olamaz, lease ölür).
 > Çalışmakta olan script'i **süreç içinde durdurmak** ise iş birliğine dayanır: loader
 > `getgenv().__2t1.revoked` bayrağını set eder, script bunu kontrol edip kendi kapanır.
@@ -225,7 +239,10 @@ POST /api/v1/heartbeat { lease, n, beat }     beat = HMAC(key, 2t1hb|lease|n)
   **taşınmıyor**; iki taraf da `SHA256(salt|nonce|script|key|hwid)` ile bağımsız türetiyor.
   Proxy log'una düşen ya da Discord'da paylaşılan bir cevap, o oturum olmadan **çözülemez**.
 - **Replay** — nonce tek kullanımlık (başarısız denemede de yakılır), ~20s ömürlü,
-  script'e ve (varsayılan olarak) isteği alan **IP'ye** bağlı.
+  script'e, key'e ve (varsayılan olarak) isteği alan **ağa** bağlı. Bağlama tam IP
+  değil **/24 (v4) ve /64 (v6) prefix'i** üzerinden yapılır: relay/bayi-röle senaryosunu
+  hâlâ engeller, ama wifi↔mobil veri geçen ya da taşıyıcı NAT'ı dönen dürüst kullanıcıyı
+  cezalandırmaz. (Tam eşleşme, bu kullanıcılara sadece "authentication failed" gösteriyordu.)
 - **Nonce deposu** — global ve IP başına tavanlı, en eskiden başlayarak boşaltılır;
   handshake seli belleği şişiremez.
 - **HWID doğrulama** — charset + uzunluk kontrolü, `unknown`/`nil`/`0` gibi **placeholder
@@ -277,6 +294,8 @@ gerçek bir Lua VM'de** uçtan uca çalıştırılır ([test/loader.test.js](tes
 | `KEY_SHARE_WINDOW_MS`                       | `3600000`      | Paylaşım/rapor penceresi                                                                                                         |
 | `KEY_RATE_MAX` / `KEY_RATE_WINDOW_MS`       | `0` / `60000`  | Key başına auth throttle (0 = kapalı)                                                                                            |
 | `HWID_MAX_LENGTH`                           | `128`          | Kabul edilen en uzun HWID                                                                                                        |
+| `EXECUTIONS_RETENTION_DAYS`                 | `14`           | Ham execution satırı saklama süresi; eskiler günlük rollup'a katlanıp silinir (0 = hiç silme)                                    |
+| `RETENTION_SWEEP_MS`                        | `3600000`      | Rollup/temizlik sıklığı                                                                                                          |
 | `HEARTBEAT`                                 | `1`            | Canlı oturum (lease) + heartbeat                                                                                                 |
 | `HEARTBEAT_INTERVAL_MS` / `LEASE_TTL_MS`    | `60000` / `210000` | Beat aralığı / lease ömrü (birkaç kaçan beat'i tolere edecek kadar uzun tut)                                                  |
 | `LEASE_MAX_PER_KEY`                         | `1`            | Key başına eşzamanlı oturum — çok cihazlı satış için artır                                                                       |

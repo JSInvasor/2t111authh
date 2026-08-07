@@ -2,6 +2,7 @@
 
 const db = require('../db');
 const lease = require('./lease');
+const retention = require('./retention');
 
 /** Aggregate analytics for a single script/project. */
 function scriptStats(scriptId, { sinceDays = 7 } = {}) {
@@ -43,19 +44,10 @@ function scriptStats(scriptId, { sinceDays = 7 } = {}) {
     )
     .all(scriptId);
 
-  // Daily execution counts for the window (for a simple chart).
-  const daily = db
-    .prepare(
-      `SELECT CAST(created_at / 86400 AS INTEGER) AS day,
-              COUNT(*) AS total,
-              COALESCE(SUM(success), 0) AS successes
-       FROM executions
-       WHERE script_id = ? AND created_at >= ?
-       GROUP BY day
-       ORDER BY day`
-    )
-    .all(scriptId, since)
-    .map((r) => ({ date: r.day * 86400, total: r.total, successes: r.successes }));
+  // Daily execution counts for the window (for a simple chart). Reads the
+  // rollup as well as the raw rows, so the chart keeps its history after old
+  // rows have been pruned.
+  const daily = retention.dailyFor(scriptId, sinceDays);
 
   return { window_days: sinceDays, executions, keys, recent, daily };
 }

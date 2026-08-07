@@ -51,6 +51,26 @@ function checkConfig() {
     }
   }
 
+  // Handshakes and leases live in this process's memory. Run a second instance
+  // and a handshake opened on one is unknown to the other, so auth fails with
+  // "invalid or expired session" for a fraction of users — the kind of failure
+  // that looks random and gets blamed on everything except the deploy topology.
+  // Catch the common ways of ending up multi-instance rather than letting it be
+  // discovered in production.
+  const instance = parseInt(process.env.NODE_APP_INSTANCE ?? process.env.pm_id ?? '', 10);
+  const instances = parseInt(process.env.instances ?? process.env.WEB_CONCURRENCY ?? '', 10);
+  if (Number.isFinite(instance) && instance > 0) {
+    errors.push(
+      `This is instance ${instance} of a multi-process deployment, but handshake and lease state is per-process. ` +
+        'Run a single instance (scale with a bigger box, not more workers) until a shared store is added.'
+    );
+  } else if (Number.isFinite(instances) && instances > 1) {
+    errors.push(
+      `${instances} workers are configured, but handshake and lease state is per-process — auth will fail ` +
+        'intermittently. Run a single instance until a shared store is added.'
+    );
+  }
+
   if (prod && config.trustProxy > 0 && config.host === '0.0.0.0') {
     warnings.push(
       `TRUST_PROXY=${config.trustProxy} while listening on 0.0.0.0 — if clients can reach the app directly they can forge X-Forwarded-For and bypass rate limiting.`
