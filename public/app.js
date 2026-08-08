@@ -119,6 +119,12 @@ const ICONS = {
     '<path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/>',
   package:
     '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  folder:
+    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'folder-open':
+    '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
+  'file-code':
+    '<path d="M10 12.5 8 15l2 2.5"/><path d="m14 12.5 2 2.5-2 2.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/>',
   'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   hash: '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
   tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
@@ -157,6 +163,17 @@ function statCard(num, label, ico, cls = '') {
     <span class="stat-ico">${icon(ico)}</span>
     <div class="stat-label">${esc(label)}</div>
     <div class="stat-value">${fmtNum(num)}</div>
+  </div>`;
+}
+
+/* Checkbox row. The box is adapted from Uiverse.io "checkbox-46" by
+   vishnupprajapat (MIT) — the tick strokes itself in and a ring pulses out. */
+const CHECK_SVG = '<svg viewBox="0 0 12 10" aria-hidden="true"><polyline points="1.5 6 4.5 9 10.5 1"/></svg>';
+
+function checkRow(id, title, desc, checked, { cls = '', attrs = '' } = {}) {
+  return `<div class="check ${cls}">
+    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} ${attrs} />
+    <label for="${id}"><span class="cbx">${CHECK_SVG}</span><span><b>${esc(title)}</b>${esc(desc)}</span></label>
   </div>`;
 }
 
@@ -225,6 +242,32 @@ function execChart(days) {
       <span><i class="sw-ok"></i> Successful</span>
       <span><i class="sw-all"></i> All attempts</span>
     </div>`;
+}
+
+/* ===================== card tilt ===================== */
+
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/** Leans a card toward the pointer. CSS owns the look; this only reports where
+ *  the pointer is, as two custom properties. */
+function bindCardTilt(root) {
+  if (REDUCED_MOTION.matches) return;
+  root.querySelectorAll('.script-card').forEach((card) => {
+    card.addEventListener('pointermove', (e) => {
+      // pointer position as -0.5..0.5 of the card, so the centre is neutral
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      // x drives rotateY, y drives rotateX, and the sign flips so the card
+      // leans *towards* the pointer rather than away from it
+      card.style.setProperty('--tilt-y', (x * 14).toFixed(2) + 'deg');
+      card.style.setProperty('--tilt-x', (-y * 14).toFixed(2) + 'deg');
+    });
+    card.addEventListener('pointerleave', () => {
+      card.style.removeProperty('--tilt-x');
+      card.style.removeProperty('--tilt-y');
+    });
+  });
 }
 
 /* ===================== theme ===================== */
@@ -311,14 +354,25 @@ async function boot() {
   }
 }
 
+/** Drops the boot cover once we know which screen to show. */
+function hideBoot() {
+  const el = $('#boot');
+  if (!el || el.classList.contains('gone')) return;
+  el.classList.add('gone');
+  setTimeout(() => el.classList.add('hidden'), 260);
+}
+
 function showLogin() {
+  hideBoot();
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
+  invalidateNavTree();
   closeNav();
 }
 
 function showApp(me) {
+  hideBoot();
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#whoami').innerHTML = `
@@ -333,6 +387,7 @@ function showApp(me) {
   } else {
     nav.innerHTML =
       `<a href="#/" class="nav-item" data-nav="dashboard">${icon('layout-dashboard')} Dashboard</a>` +
+      navTree() +
       `<a href="#/resellers" class="nav-item" data-nav="resellers">${icon('users')} Resellers</a>` +
       `<a href="#/admins" class="nav-item" data-nav="admins">${icon('shield-check')} Admins</a>`;
   }
@@ -340,6 +395,69 @@ function showApp(me) {
 
 function setActiveNav(name) {
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.nav === name));
+}
+
+/* ===================== sidebar script tree ===================== */
+
+/* Jumping between two scripts used to mean going back to the overview and
+   picking the next card; the tree makes it one click.
+   Adapted from Uiverse.io "file tree" by ashif_6672 (MIT). The branch opens
+   by animating a grid row from 0fr to 1fr, so the transition needs no guess
+   at the content height, and the folder icon swaps for its open variant. */
+function navTree() {
+  return `<div class="tree-item" id="navTree">
+    <input type="checkbox" class="tree-toggle" id="navTreeToggle" checked />
+    <label class="nav-item tree-label" for="navTreeToggle">
+      ${icon('chevron-right', 'tree-caret')}
+      ${icon('folder')}${icon('folder-open')}
+      <span class="tree-title">Scripts</span>
+      <span class="tree-count" id="navTreeCount"></span>
+    </label>
+    <div class="tree-children-wrapper">
+      <div class="tree-children"><ul id="navTreeList"></ul></div>
+    </div>
+  </div>`;
+}
+
+let navScripts = null;   // null until the first list lands
+let navScriptId = null;  // the script the tree should mark as selected
+
+/** Repaints the tree. Callers that already hold the script list pass it in;
+ *  everyone else gets the cached copy, fetched once on first need. */
+async function syncNavTree(scripts) {
+  if (!$('#navTree')) return; // resellers have no tree
+  if (scripts) navScripts = scripts;
+  else if (!navScripts) {
+    try { navScripts = (await api('/api/v1/scripts')).scripts; } catch { return; }
+  }
+  const list = $('#navTreeList');
+  if (!list) return; // logged out while the fetch was in flight
+  list.innerHTML = navScripts.length
+    ? navScripts.map((s) => `<li class="tree-item">
+        <a class="tree-file" href="#/s/${esc(s.id)}" data-script="${esc(s.id)}" title="${esc(s.name)}">
+          ${icon('file-code')}<span class="tree-name">${esc(s.name)}</span>
+        </a>
+      </li>`).join('')
+    : `<li class="tree-item"><span class="tree-file tree-none">${icon('file-code')}<span class="tree-name">No scripts yet</span></span></li>`;
+  $('#navTreeCount').textContent = navScripts.length || '';
+  markNavScript(navScriptId);
+}
+
+/** Highlights one script in the tree (or none), revealing it if collapsed. */
+function markNavScript(id) {
+  navScriptId = id;
+  const tree = $('#navTree');
+  if (!tree) return;
+  tree.querySelectorAll('.tree-file').forEach((el) => el.classList.toggle('is-selected', !!id && el.dataset.script === id));
+  if (id) $('#navTreeToggle').checked = true;
+}
+
+/** Drops the cached list so the next paint refetches — names, and the list
+ *  itself, change from places that never see the full collection. Also how
+ *  one account's scripts stop being held in memory once it logs out. */
+function invalidateNavTree() {
+  navScripts = null;
+  navScriptId = null;
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -390,6 +508,7 @@ function route() {
 
 async function renderScriptsList() {
   setActiveNav('dashboard');
+  markNavScript(null);
   state.refresh = renderScriptsList;
   view().innerHTML = skeleton();
   let scripts, ov;
@@ -399,6 +518,8 @@ async function renderScriptsList() {
       api('/api/v1/overview'),
     ]);
   } catch (e) { view().innerHTML = errorState(e.message); return; }
+
+  syncNavTree(scripts); // the list is already in hand — no second request
 
   const t = ov.totals;
   const overviewRow = `
@@ -437,6 +558,182 @@ async function renderScriptsList() {
     ${scripts.length ? `<div class="grid">${cards}</div>`
       : emptyState('package', 'No scripts yet', 'Create your first script to get a loader and start issuing keys.')}
   `;
+
+  bindCardTilt(view());
+}
+
+/* Split the rejection reasons the server records into the two kinds that matter,
+   because they are worth very different amounts. A `protocol:` row is the server
+   catching a request a stock loader cannot make — a spent nonce, a proof that
+   does not verify. A `client_tamper:` row is the loader's own report, which
+   anyone can forge, so it is a hint and nothing more. */
+const SIGNALS = {
+  'protocol:unknown_nonce': ['Nonce not issued by us', 'hard'],
+  'protocol:expired_nonce': ['Handshake expired before use', 'hard'],
+  'protocol:nonce_script_mismatch': ['Nonce used on another script', 'hard'],
+  'protocol:nonce_ip_mismatch': ['Handshake spent from another IP', 'hard'],
+  'protocol:proof_failed': ['Request signature did not verify', 'hard'],
+  hwid_mismatch: ['Key used on a second device', 'hard'],
+  auto_banned_sharing: ['Auto-banned — too many devices', 'hard'],
+  auto_banned_sharing_ip: ['Auto-banned — too many networks', 'hard'],
+  key_rate_limited: ['Key throttled', 'soft'],
+};
+
+function signalRow(r) {
+  const [label, weight] = SIGNALS[r.reason] ||
+    (String(r.reason).startsWith('client_tamper:')
+      ? [`Client reported ${String(r.reason).slice(14).replace(/[:_]/g, ' ')}`, 'soft']
+      : [r.reason, 'soft']);
+  return `<tr>
+    <td>${fmtDate(r.created_at)}</td>
+    <td><span class="pill pill-signal pill-${weight === 'hard' ? 'banned' : 'paused'}">${icon(weight === 'hard' ? 'shield-check' : 'info')} ${esc(label)}</span></td>
+    <td class="hwid-cell" title="${esc(r.hwid || '')}">${r.hwid ? esc(r.hwid) : '—'}</td>
+    <td>${r.ip ? esc(r.ip) : '—'}</td>
+    <td>${r.executor ? esc(r.executor) : '—'}</td>
+  </tr>`;
+}
+
+function securityPanel(recent) {
+  const rows = (recent || []).filter((r) => !r.success && r.reason !== 'ok');
+  const hard = rows.filter((r) => (SIGNALS[r.reason] || [])[1] === 'hard').length;
+  return `<div class="panel">
+    <div class="panel-head">
+      <h2>${icon('shield-check')} Security signals
+        <span class="sub">${rows.length ? `${fmtNum(hard)} verified · ${fmtNum(rows.length - hard)} advisory` : 'last 20 events'}</span>
+      </h2>
+    </div>
+    ${rows.length
+      ? `<div class="table-wrap"><table>
+          <thead><tr><th>When</th><th>Signal</th><th>HWID</th><th>IP</th><th>Executor</th></tr></thead>
+          <tbody>${rows.map(signalRow).join('')}</tbody>
+        </table></div>`
+      : `<div class="panel-body">${emptyState('shield-check', 'Nothing to look at', 'Rejected handshakes, bad request signatures and device-lock hits land here.')}</div>`}
+  </div>`;
+}
+
+/* ===================== leak tracing ===================== */
+
+/* Every protected delivery is fingerprinted with the key that fetched it, so a
+   dump found in the wild can be read back to its source. Paste what you found —
+   it does not have to be complete, still minified, or even parse. */
+function tracePanel(script) {
+  if (!script.obfuscate) {
+    return `<div class="panel">
+      <div class="panel-head"><h2>${icon('fingerprint')} Trace a leak</h2></div>
+      <div class="panel-body">${emptyState(
+        'fingerprint',
+        'Copies of this script are identical',
+        'Turn on “Obfuscate & encrypt” below and future deliveries carry a per-key fingerprint, so a leaked dump names whoever leaked it.'
+      )}</div>
+    </div>`;
+  }
+  return `<div class="panel">
+    <div class="panel-head">
+      <h2>${icon('fingerprint')} Trace a leak <span class="sub">read a dump back to the key it came from</span></h2>
+    </div>
+    <div class="panel-body">
+      <p class="muted">Paste the leaked script. A fragment is fine — so is a copy that has been reformatted, re-minified, or had someone else's code pasted into it.</p>
+      <textarea id="traceSample" class="trace-input" rows="8" spellcheck="false" placeholder="-- paste the leaked script here"></textarea>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" data-action="run-trace">${icon('search')} Trace</button>
+        <span class="spacer"></span>
+      </div>
+      <div id="traceResult"></div>
+    </div>
+  </div>`;
+}
+
+/* Odds are the whole story here, so they are shown rather than hidden behind a
+   verdict: `expected_false` is how many of the keys searched would score this
+   well by chance. A confident answer is one where that number is tiny AND one
+   key stands clear of the field. */
+function traceResultHTML(t) {
+  const best = t.matches[0];
+  const chance = (n) => (n < 0.001 ? `1 in ${fmtNum(Math.round(1 / n))}` : n.toFixed(2));
+  const read = t.carriers_by_kind.read;
+  const total = t.carriers_by_kind.total;
+  const channel = (label, k) =>
+    total[k] ? `<span class="trace-chan${read[k] ? '' : ' dead'}">${label} ${fmtNum(read[k])}/${fmtNum(total[k])}</span>` : '';
+
+  // Why it failed matters more than that it failed, and the three reasons call
+  // for different next steps — so say which one this is rather than one vague
+  // line that sends the user off to find a longer sample they may not need.
+  function whyNot() {
+    if (!t.carriers_read) {
+      return 'Found none of this script’s fingerprint here. Either this is not a copy of this script, or it was delivered before watermarking was switched on.';
+    }
+    if (total.ident && !read.ident) {
+      return `None of the variable names here are ones this server issued, and the ${fmtNum(t.carriers_read)} marks that did read back vote like chance rather than like a key — so this is probably not a delivery of ours. Note that a copy someone merely re-minified still names its key.`;
+    }
+    return `Only ${fmtNum(t.bits_recovered)} of ${fmtNum(t.bits_possible)} fingerprint bits survived here — too few to rule out coincidence. A longer piece of the leak would settle it.`;
+  }
+
+  const head = t.confident
+    ? `<div class="trace-verdict hit">
+         ${icon('fingerprint')}
+         <div>
+           <strong>This copy was built for <code>${esc(best.value)}</code></strong>
+           <span class="muted">Out of ${fmtNum(t.candidates)} keys, the odds of the wrong one scoring this well are ${chance(best.expected_false)}.</span>
+         </div>
+       </div>`
+    : `<div class="trace-verdict miss">
+         ${icon('circle-alert')}
+         <div>
+           <strong>Not enough to name a key</strong>
+           <span class="muted">${whyNot()}</span>
+         </div>
+       </div>`;
+
+  const rows = t.matches
+    .slice(0, 5)
+    .map(
+      (m, i) => `<tr class="${i === 0 && t.confident ? 'trace-best' : ''}">
+      <td><code>${esc(m.value)}</code></td>
+      <td><span class="pill pill-${esc(m.status)}">${esc(m.status)}</span></td>
+      <td>${m.note ? esc(m.note) : '—'}</td>
+      <td>${m.discord_id ? esc(m.discord_id) : '—'}</td>
+      <td>${fmtNum(m.matched)}/${fmtNum(t.bits_recovered)}</td>
+      <td>${m.expected_false < 0.001 ? chance(m.expected_false) : m.expected_false.toFixed(2)}</td>
+      <td>${fmtDate(m.last_seen)}</td>
+      <td class="row-actions">
+        <button class="icon-btn" title="Copy key" data-action="copy" data-copy="${esc(m.value)}">${icon('copy')}</button>
+        ${m.status === 'banned' ? '' : `<button class="icon-btn danger" title="Ban this key" data-action="key-ban" data-id="${m.id}">${icon('ban')}</button>`}
+      </td>
+    </tr>`
+    )
+    .join('');
+
+  return `${head}
+    ${t.note ? `<p class="trace-note">${icon('info')} ${esc(t.note)}</p>` : ''}
+    <div class="trace-evidence">
+      <span>${fmtNum(t.bits_recovered)}/${fmtNum(t.bits_possible)} fingerprint bits</span>
+      <span>${fmtNum(t.carriers_read)}/${fmtNum(t.carriers_total)} marks readable</span>
+      ${channel('names', 'ident')} ${channel('strings', 'str')} ${channel('numbers', 'num')}
+      <span>${fmtNum(t.candidates)} keys searched</span>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Status</th><th>Note</th><th>Discord</th><th>Match</th><th>By chance</th><th>Last seen</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+async function runTrace() {
+  const box = $('#traceSample');
+  const out = $('#traceResult');
+  if (!box || !out || !currentScript) return;
+  const sample = box.value;
+  if (sample.trim().length < 40) { toast('Paste more of the leaked script', 'err'); return; }
+
+  out.innerHTML = `<p class="muted">${icon('search')} Reading the fingerprint…</p>`;
+  hydrateIcons(out);
+  try {
+    const { trace } = await api(`/api/v1/scripts/${currentScript.id}/trace`, { method: 'POST', body: { sample } });
+    out.innerHTML = traceResultHTML(trace);
+    hydrateIcons(out);
+  } catch (e) {
+    out.innerHTML = '';
+    toast(e.message, 'err');
+  }
 }
 
 /* ===================== script detail ===================== */
@@ -445,7 +742,9 @@ let currentKeys = [];
 let currentScript = null;
 
 async function renderScriptDetail(id) {
-  setActiveNav('dashboard');
+  setActiveNav('script'); // the tree marks where we are; no flat item matches
+  markNavScript(id);
+  syncNavTree();
   state.refresh = () => renderScriptDetail(id);
   view().innerHTML = skeleton();
 
@@ -503,6 +802,10 @@ async function renderScriptDetail(id) {
       <pre class="snippet">${snippetHTML(snippet)}</pre>
     </div>
 
+    ${securityPanel(stats.recent)}
+
+    ${tracePanel(script)}
+
     <div class="panel">
       <div class="panel-head">
         <h2>${icon('key-round')} Keys <span class="sub">${fmtNum(currentKeys.length)}</span></h2>
@@ -533,18 +836,9 @@ async function renderScriptDetail(id) {
           <div class="form-grid">
             <div><label for="setName">Name</label><input id="setName" value="${esc(script.name)}" /></div>
             <div><label for="setVersion">Version</label><input id="setVersion" value="${esc(script.version)}" /></div>
-            <div class="full check">
-              <input type="checkbox" id="setHwidLock" ${script.hwid_lock ? 'checked' : ''} />
-              <label for="setHwidLock"><b>HWID lock</b>Bind each key to the first device it runs on.</label>
-            </div>
-            <div class="full check">
-              <input type="checkbox" id="setObf" ${script.obfuscate ? 'checked' : ''} />
-              <label for="setObf"><b>Obfuscate &amp; encrypt</b>Re-scramble and encrypt the source on every delivery.</label>
-            </div>
-            <div class="full check">
-              <input type="checkbox" id="setEnabled" ${script.enabled ? 'checked' : ''} />
-              <label for="setEnabled"><b>Enabled</b>Uncheck for maintenance mode — every auth request is rejected.</label>
-            </div>
+            ${checkRow('setHwidLock', 'HWID lock', 'Bind each key to the first device it runs on.', script.hwid_lock, { cls: 'full' })}
+            ${checkRow('setObf', 'Obfuscate & encrypt', 'Re-scramble and encrypt the source on every delivery.', script.obfuscate, { cls: 'full' })}
+            ${checkRow('setEnabled', 'Enabled', 'Uncheck for maintenance mode — every auth request is rejected.', script.enabled, { cls: 'full' })}
             <div class="full">
               <label for="setSource">Protected script source (Lua)</label>
               <textarea id="setSource" rows="12" spellcheck="false"></textarea>
@@ -590,6 +884,7 @@ async function renderScriptDetail(id) {
         },
       });
       toast('Settings saved', 'ok');
+      invalidateNavTree(); // the name may have changed
       renderScriptDetail(script.id);
     } catch (err) { toast(err.message, 'err'); }
   });
@@ -666,10 +961,8 @@ function openNewScriptModal() {
        <div><label for="nsName">Name</label><input id="nsName" placeholder="My Hub" /></div>
        <div><label for="nsVersion">Version</label><input id="nsVersion" value="1.0.0" /></div>
      </div>
-     <div class="check"><input type="checkbox" id="nsHwid" checked />
-       <label for="nsHwid"><b>HWID lock</b>Bind each key to one device.</label></div>
-     <div class="check"><input type="checkbox" id="nsObf" checked />
-       <label for="nsObf"><b>Obfuscate &amp; encrypt</b>Protect the source on every delivery.</label></div>
+     ${checkRow('nsHwid', 'HWID lock', 'Bind each key to one device.', true)}
+     ${checkRow('nsObf', 'Obfuscate & encrypt', 'Protect the source on every delivery.', true)}
      <div><label for="nsSource">Script source (Lua, optional)</label>
        <textarea id="nsSource" rows="6" spellcheck="false" placeholder='print("hello")'></textarea></div>`,
     `<button class="btn" data-action="modal-close">Cancel</button>
@@ -693,6 +986,7 @@ async function createScript() {
     });
     closeModal();
     toast('Script created', 'ok');
+    invalidateNavTree();
     location.hash = `#/s/${script.id}`;
   } catch (err) { toast(err.message, 'err'); }
 }
@@ -848,10 +1142,9 @@ async function renderResellerDetail(id) {
     <div class="panel">
       <div class="panel-head"><h2>${icon('settings')} Account</h2></div>
       <div class="panel-body">
-        <div class="check">
-          <input type="checkbox" id="resEnabled" ${reseller.enabled ? 'checked' : ''} data-action="toggle-enabled" data-id="${id}" />
-          <label for="resEnabled"><b>Enabled</b>Allow this account to sign in.</label>
-        </div>
+        ${checkRow('resEnabled', 'Enabled', 'Allow this account to sign in.', reseller.enabled, {
+          attrs: `data-action="toggle-enabled" data-id="${id}"`,
+        })}
         <div class="form-grid" style="margin-top:14px">
           <div><label for="resPass">Reset password</label><input id="resPass" type="password" placeholder="new password" /></div>
           <div style="display:flex;align-items:flex-end">
@@ -1157,13 +1450,14 @@ document.addEventListener('click', (e) => {
     case 'do-gen-keys': doGenKeys(); break;
     case 'copy': copy(t.dataset.copy); break;
     case 'export-csv': if (currentScript) window.location.href = `/api/v1/scripts/${currentScript.id}/keys.csv`; break;
+    case 'run-trace': runTrace(); break;
     case 'modal-close': closeModal(); break;
     case 'modal-backdrop': if (e.target === t) closeModal(); break;
     case 'modal-close-refresh': closeModal(); if (state.refresh) state.refresh(); break;
     case 'delete-script':
       if (currentScript && confirm(`Delete "${currentScript.name}" and ALL its keys? This cannot be undone.`)) {
         api(`/api/v1/scripts/${currentScript.id}`, { method: 'DELETE' })
-          .then(() => { toast('Script deleted', 'ok'); location.hash = '#/'; })
+          .then(() => { toast('Script deleted', 'ok'); invalidateNavTree(); location.hash = '#/'; })
           .catch((err) => toast(err.message, 'err'));
       }
       break;

@@ -14,18 +14,48 @@
   <body>
     <div class="ambient" aria-hidden="true"></div>
 
+    <!-- ------------------------------------------------------------- boot -->
+    <!-- Covers the gap between first paint and /dashboard/api/me answering,
+         where neither the login nor the dashboard can be shown yet. -->
+    <div id="boot" class="boot">
+      <svg class="pl" viewBox="0 0 240 240" role="img" aria-label="Loading">
+        <circle
+          class="pl__ring pl__ring--a"
+          cx="120" cy="120" r="105"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 660" stroke-dashoffset="-330"
+        />
+        <circle
+          class="pl__ring pl__ring--b"
+          cx="120" cy="120" r="35"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 220" stroke-dashoffset="-110"
+        />
+        <circle
+          class="pl__ring pl__ring--c"
+          cx="85" cy="120" r="70"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 440"
+        />
+        <circle
+          class="pl__ring pl__ring--d"
+          cx="155" cy="120" r="70"
+          fill="none" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="0 440"
+        />
+      </svg>
+    </div>
+
     <!-- ------------------------------------------------------------ login -->
     <div id="login" class="login-screen hidden">
-      <div class="login-chains" aria-hidden="true">
-        <div class="chain-drop d1"><div class="chain"></div></div>
-        <div class="chain-drop d2"><div class="chain"></div></div>
-        <div class="chain-drop d3"><div class="chain"></div></div>
-        <div class="chain-drop d4"><div class="chain"></div></div>
-        <div class="chain-drop d5"><div class="chain"></div></div>
-        <div class="chain-drop d6"><div class="chain"></div></div>
-        <div class="chain-drop d7"><div class="chain"></div></div>
-        <div class="chain-drop d8"><div class="chain"></div></div>
+      <!-- The dark shelf, and the torch that lights it. Two copies of the same
+           scene: .shelf is the unlit one, .shelf-lit i the coloured one, and
+           the torch is a round window that travels over the top of it. -->
+      <div class="shelf" aria-hidden="true">
+        <div class="shelf-lit"><i></i></div>
+        <span class="shelf-eyes"></span>
       </div>
+
       <div class="login-card">
         <div class="login-pane">
         <div class="login-brand">
@@ -35,32 +65,34 @@
         </div>
         <form id="loginForm" class="login-form">
           <div class="field">
-            <label for="loginUser">Username</label>
             <div class="input-wrap">
               <span data-icon="circle-user"></span>
+              <!-- placeholder is a single space on purpose: it is what makes
+                   :placeholder-shown a reliable "field is empty" signal -->
               <input
                 id="loginUser"
                 name="username"
-                placeholder="admin"
+                placeholder=" "
                 autocomplete="username"
                 autocapitalize="none"
                 spellcheck="false"
                 required
               />
+              <label class="float-label" for="loginUser"><span>U</span><span>s</span><span>e</span><span>r</span><span>n</span><span>a</span><span>m</span><span>e</span></label>
             </div>
           </div>
           <div class="field">
-            <label for="loginPass">Password</label>
             <div class="input-wrap">
               <span data-icon="lock-keyhole"></span>
               <input
                 id="loginPass"
                 name="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder=" "
                 autocomplete="current-password"
                 required
               />
+              <label class="float-label" for="loginPass"><span>P</span><span>a</span><span>s</span><span>s</span><span>w</span><span>o</span><span>r</span><span>d</span></label>
             </div>
           </div>
           <button type="submit" class="btn btn-primary login-submit">Sign in</button>
@@ -83,7 +115,28 @@
           <div class="aside-art" aria-hidden="true"></div>
           <div class="aside-copy">
             <h2>Protection your users never notice</h2>
-            <p>HWID-bound keys, re-obfuscated on every delivery, with live execution stats.</p>
+            <!-- The first panel stays open until the pointer picks another, so
+                 there is always a readable line rather than three spines. -->
+            <div class="feat">
+              <div class="feat-item">
+                <span>
+                  <b>HWID lock</b>
+                  <em>Every key binds itself to the first machine that runs it.</em>
+                </span>
+              </div>
+              <div class="feat-item">
+                <span>
+                  <b>Obfuscation</b>
+                  <em>Source is re-scrambled and encrypted on every delivery.</em>
+                </span>
+              </div>
+              <div class="feat-item">
+                <span>
+                  <b>Live stats</b>
+                  <em>Executions, devices and failures, as they happen.</em>
+                </span>
+              </div>
+            </div>
           </div>
         </aside>
       </div>

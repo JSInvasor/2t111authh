@@ -99,12 +99,7 @@
   --logo-fill: linear-gradient(155deg, #6e6e6e, #2e2e2e 58%, #1a1a1a);
 
   /* login backdrop */
-  --login-bg: #ededed;
-  --login-grid: rgba(23, 23, 23, 0.07);
-  --login-glow: rgba(247, 247, 247, 0.93);
-  --login-halo: rgba(23, 23, 23, 0.05);
   --login-card: #ffffff;
-  --login-chain: rgba(23, 23, 23, 0.17);
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -168,13 +163,7 @@
   --chart-track: rgba(255, 255, 255, 0.08);
 
   --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
-
-  --login-bg: #0a0a0a;
-  --login-grid: rgba(255, 255, 255, 0.06);
-  --login-glow: rgba(13, 13, 13, 0.92);
-  --login-halo: rgba(255, 255, 255, 0.04);
   --login-card: #171717;
-  --login-chain: rgba(244, 244, 244, 0.15);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -228,13 +217,7 @@
     --chart-track: rgba(255, 255, 255, 0.08);
 
     --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
-
-    --login-bg: #0a0a0a;
-    --login-grid: rgba(255, 255, 255, 0.06);
-    --login-glow: rgba(13, 13, 13, 0.92);
-    --login-halo: rgba(255, 255, 255, 0.04);
     --login-card: #171717;
-    --login-chain: rgba(244, 244, 244, 0.15);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -346,6 +329,10 @@ table td,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    /* staggered delays survive a clamped duration and turn what should be a
+       single instant change into a stepped one — exactly the flicker this
+       block exists to prevent (the login label's per-letter wipe is one) */
+    transition-delay: 0s !important;
   }
 }
 
@@ -574,6 +561,13 @@ select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-ring);
 }
+/* No halo on the login fields — the border alone marks focus there.
+   :focus-visible would not help: text inputs match it even on a mouse click,
+   because they take keyboard input. So this has to cover :focus outright, and
+   the border darkening is what keeps focus locatable. */
+.login-form input:focus {
+  box-shadow: none;
+}
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
@@ -614,6 +608,57 @@ select {
   flex-direction: column;
   gap: 6px;
 }
+/* the floating label rises out of the field, so the row has to reserve the
+   space it lands in */
+.login-form .field {
+  padding-top: 22px;
+}
+
+/* Floating label from Uiverse.io by liyaxu123 (MIT). The source pairs it with
+   a borderless underline input; the box and its leading icon are kept here so
+   the login fields still match every other input in the panel, and only the
+   label mechanic is taken. Each letter is its own span so they can be
+   staggered. */
+.float-label {
+  position: absolute;
+  left: 38px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+.float-label span {
+  display: inline-block;
+  min-width: 3px;
+  /* Letters lift and fade rather than parking above the box, so the label
+     wipes itself away as the field takes over — and writes itself back in,
+     dropping from above, when the field is left empty. The stagger below is
+     what makes it read as a wipe instead of one block fading; it is declared
+     on this rule, not the lifted one, so both directions run the same way. */
+  transition:
+    transform 0.42s var(--ease),
+    opacity 0.34s var(--ease);
+}
+.float-label span:nth-child(1) { transition-delay: 0ms; }
+.float-label span:nth-child(2) { transition-delay: 35ms; }
+.float-label span:nth-child(3) { transition-delay: 70ms; }
+.float-label span:nth-child(4) { transition-delay: 105ms; }
+.float-label span:nth-child(5) { transition-delay: 140ms; }
+.float-label span:nth-child(6) { transition-delay: 175ms; }
+.float-label span:nth-child(7) { transition-delay: 210ms; }
+.float-label span:nth-child(8) { transition-delay: 245ms; }
+/* :placeholder-shown rather than the source's :valid — :valid only stands in
+   for "has content" while the field is required, and would pin the label up
+   on an empty optional field */
+.input-wrap input:focus + .float-label span,
+.input-wrap input:not(:placeholder-shown) + .float-label span {
+  transform: translateY(-24px);
+  opacity: 0;
+}
 .input-wrap {
   position: relative;
   display: flex;
@@ -648,106 +693,231 @@ select {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--login-bg);
+  /* the shelf below is a dark room in either theme, same as the showcase
+     panel, so this is a literal rather than a themed token */
+  background: #111;
   overflow: hidden;
 }
-/* the grid itself */
-.login-screen::before {
-  content: '';
-  position: absolute;
+
+/* ------------------------------------------------------- login: the shelf
+   From Uiverse.io by Cobp (MIT). The whole scene — shelves, book spines,
+   their shading — is stacked linear-gradients on a 300x150 tile, with no
+   image involved; a torch travels over it and reveals the same scene in
+   colour, and at one point something blinks back.
+
+   The source clips the coloured copy with an animated clip-path over a
+   full-viewport element. Measured at 1440x900 that runs at a median 33.4ms
+   per frame (p95 66.7ms), because the 25-gradient stack is re-rasterised
+   every frame. Here the torch is instead a round 300px window moved with
+   transform, and the coloured scene inside it is moved by exactly the
+   opposite amount so it holds still while the window travels over it. Both
+   are transforms, so the scene is painted once and the sweep composites.
+   Every keyframe below therefore comes in a matched pair, and the two must
+   keep identical offsets or the scene will drift inside the window. */
+.shelf {
+  position: fixed;
   inset: 0;
+  background-color: #111;
   background-image:
-    linear-gradient(to right, var(--login-grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--login-grid) 1px, transparent 1px);
-  background-size: 44px 44px;
-  background-position: 0 0;
+    linear-gradient(to top, #222 5%, #111 6%, #111 7%, transparent 7%),
+    linear-gradient(to bottom, #111 30%, transparent 80%),
+    linear-gradient(to right, #222, #2e2e2e 5%, transparent 5%),
+    linear-gradient(to right, transparent 6%, #222 6%, #2e2e2e 9%, transparent 9%),
+    linear-gradient(to right, transparent 27%, #222 27%, #2e2e2e 34%, transparent 34%),
+    linear-gradient(to right, transparent 51%, #222 51%, #2e2e2e 57%, transparent 57%),
+    linear-gradient(to bottom, #111 35%, transparent 35%),
+    linear-gradient(to right, transparent 42%, #222 42%, #2e2e2e 44%, transparent 44%),
+    linear-gradient(to right, transparent 45%, #222 45%, #2e2e2e 47%, transparent 47%),
+    linear-gradient(to right, transparent 48%, #222 48%, #2e2e2e 50%, transparent 50%),
+    linear-gradient(to right, transparent 87%, #222 87%, #2e2e2e 91%, transparent 91%),
+    linear-gradient(to bottom, #111 37.5%, transparent 37.5%),
+    linear-gradient(to right, transparent 14%, #222 14%, #2e2e2e 20%, transparent 20%),
+    linear-gradient(to bottom, #111 40%, transparent 40%),
+    linear-gradient(to right, transparent 10%, #222 10%, #2e2e2e 13%, transparent 13%),
+    linear-gradient(to right, transparent 21%, #222 21%, #1a1a1a 25%, transparent 25%),
+    linear-gradient(to right, transparent 58%, #222 58%, #2e2e2e 64%, transparent 64%),
+    linear-gradient(to right, transparent 92%, #222 92%, #2e2e2e 95%, transparent 95%),
+    linear-gradient(to bottom, #111 48%, transparent 48%),
+    linear-gradient(to right, transparent 96%, #222 96%, #1a1a1a 99%, transparent 99%),
+    linear-gradient(
+      to bottom,
+      transparent 68.5%,
+      transparent 76%,
+      #111 76%,
+      #111 77.5%,
+      transparent 77.5%,
+      transparent 86%,
+      #111 86%,
+      #111 87.5%,
+      transparent 87.5%
+    ),
+    linear-gradient(to right, transparent 35%, #222 35%, #2e2e2e 41%, transparent 41%),
+    linear-gradient(to bottom, #111 68%, transparent 68%),
+    linear-gradient(
+      to right,
+      transparent 78%,
+      #333 78%,
+      #333 80%,
+      transparent 80%,
+      transparent 82%,
+      #333 82%,
+      #333 83%,
+      transparent 83%
+    ),
+    linear-gradient(to right, transparent 66%, #222 66%, #2e2e2e 85%, transparent 85%);
+  background-size: 300px 150px;
+  background-position: center bottom;
 }
 
-/* ------------------------------------------------- login: hanging chains */
-/* Long strands that come down from above and sway, kept in the outer bands so
-   the card sits in clear space. chain.svg is white on transparency and painted
-   through a mask, so one file covers both themes.
-   Two nested elements on purpose: the outer one falls, the inner one swings.
-   Composing them in a single keyframe set would force the sway to share the
-   fall's timing, and the sway needs its own ease-in-out to read as a pendulum. */
-.login-chains {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.chain-drop {
-  position: absolute;
+/* The round window. Its centre sits on the viewport origin, so the translate
+   in the keyframes reads straight off as "put the torch here". */
+.shelf-lit {
+  position: fixed;
+  left: 0;
   top: 0;
-  animation: chain-fall linear infinite;
-  will-change: transform;
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  border-radius: 50%;
+  overflow: hidden;
+  transform: translate(-25vw, 10vh);
+  animation: torch 20s ease infinite;
 }
-.chain {
-  width: 100%;
-  aspect-ratio: 49 / 1585;
-  background: var(--login-chain);
-  -webkit-mask: url('chain.svg') top center / contain no-repeat;
-  mask: url('chain.svg') top center / contain no-repeat;
-  transform-origin: 50% 0;
-  animation: chain-sway ease-in-out infinite alternate;
-  will-change: transform;
-}
-@keyframes chain-fall {
-  from {
-    transform: translateY(-100%);
-  }
-  to {
-    transform: translateY(100vh);
-  }
-}
-@keyframes chain-sway {
-  from {
-    transform: translateX(-22px) rotate(-2.2deg);
-  }
-  to {
-    transform: translateX(22px) rotate(2.4deg);
-  }
+/* the lit scene, pinned back onto the viewport by the opposite translate */
+.shelf-lit i {
+  position: absolute;
+  left: 150px;
+  top: 150px;
+  width: 100vw;
+  height: 100vh;
+  transform: translate(25vw, -10vh);
+  animation: torch-hold 20s ease infinite;
+  background-color: #111;
+  background-image:
+    linear-gradient(to top, #d2b48c 5%, #111 6%, #111 7%, transparent 7%),
+    linear-gradient(to bottom, #111 30%, transparent 30%),
+    linear-gradient(to right, #b22222, #871a1a 5%, transparent 5%),
+    linear-gradient(to right, transparent 6%, #ff6347 6%, #ff3814 9%, transparent 9%),
+    linear-gradient(to right, transparent 27%, #556b2f 27%, #39481f 34%, transparent 34%),
+    linear-gradient(to right, transparent 51%, #fa8072 51%, #f85441 57%, transparent 57%),
+    linear-gradient(to bottom, #111 35%, transparent 35%),
+    linear-gradient(to right, transparent 42%, #008080 42%, #004d4d 44%, transparent 44%),
+    linear-gradient(to right, transparent 45%, #008080 45%, #004d4d 47%, transparent 47%),
+    linear-gradient(to right, transparent 48%, #008080 48%, #004d4d 50%, transparent 50%),
+    linear-gradient(to right, transparent 87%, #789 87%, #4f5d6a 91%, transparent 91%),
+    linear-gradient(to bottom, #111 37.5%, transparent 37.5%),
+    linear-gradient(to right, transparent 14%, #bdb76b 14%, #989244 20%, transparent 20%),
+    linear-gradient(to bottom, #111 40%, transparent 40%),
+    linear-gradient(to right, transparent 10%, #808000 10%, #4d4d00 13%, transparent 13%),
+    linear-gradient(to right, transparent 21%, #8b4513 21%, #5e2f0d 25%, transparent 25%),
+    linear-gradient(to right, transparent 58%, #8b4513 58%, #5e2f0d 64%, transparent 64%),
+    linear-gradient(to right, transparent 92%, #2f4f4f 92%, #1c2f2f 95%, transparent 95%),
+    linear-gradient(to bottom, #111 48%, transparent 48%),
+    linear-gradient(to right, transparent 96%, #2f4f4f 96%, #1c2f2f 99%, transparent 99%),
+    linear-gradient(
+      to bottom,
+      transparent 68.5%,
+      transparent 76%,
+      #111 76%,
+      #111 77.5%,
+      transparent 77.5%,
+      transparent 86%,
+      #111 86%,
+      #111 87.5%,
+      transparent 87.5%
+    ),
+    linear-gradient(to right, transparent 35%, #cd5c5c 35%, #bc3a3a 41%, transparent 41%),
+    linear-gradient(to bottom, #111 68%, transparent 68%),
+    linear-gradient(
+      to right,
+      transparent 78%,
+      #bc8f8f 78%,
+      #bc8f8f 80%,
+      transparent 80%,
+      transparent 82%,
+      #bc8f8f 82%,
+      #bc8f8f 83%,
+      transparent 83%
+    ),
+    linear-gradient(to right, transparent 66%, #a52a2a 66%, #7c2020 85%, transparent 85%);
+  background-size: 300px 150px;
+  background-position: center bottom;
 }
 
-/* Anchored to the left and right edges. The percentages stay outside the
-   880px card, and every strand runs at its own pace so the two sides never
-   swing together. */
-.d1 { left: 1%;   width: 74px; animation-duration: 58s; animation-delay: -14s; }
-.d2 { left: 7%;   width: 58px; animation-duration: 76s; animation-delay: -49s; }
-.d3 { left: 13%;  width: 86px; animation-duration: 65s; animation-delay: -31s; }
-.d4 { left: 4%;   width: 62px; animation-duration: 88s; animation-delay: -70s; }
-.d5 { right: 1%;  width: 80px; animation-duration: 62s; animation-delay: -22s; }
-.d6 { right: 8%;  width: 60px; animation-duration: 81s; animation-delay: -56s; }
-.d7 { right: 14%; width: 90px; animation-duration: 70s; animation-delay: -38s; }
-.d8 { right: 5%;  width: 66px; animation-duration: 94s; animation-delay: -8s; }
-
-.d1 .chain { animation-duration: 9s;  animation-delay: -3s; }
-.d2 .chain { animation-duration: 12s; animation-delay: -7s; }
-.d3 .chain { animation-duration: 10s; animation-delay: -1s; }
-.d4 .chain { animation-duration: 14s; animation-delay: -9s; }
-.d5 .chain { animation-duration: 11s; animation-delay: -5s; }
-.d6 .chain { animation-duration: 13s; animation-delay: -2s; }
-.d7 .chain { animation-duration: 8.5s; animation-delay: -6s; }
-.d8 .chain { animation-duration: 15s; animation-delay: -11s; }
-
-/* Widths are fixed px, so on a narrow screen the strands end up enormous next
-   to a 342px card. Thin them out and drop the inner ones. */
-@media (max-width: 900px) {
-  .login-chains .chain-drop {
-    width: 44px;
-  }
-  .d3,
-  .d4,
-  .d7,
-  .d8 {
-    display: none;
-  }
+/* whatever is on the shelf when the torch swings down to it */
+.shelf-eyes {
+  position: fixed;
+  left: calc(50% + 59px);
+  bottom: 100px;
+  width: 25px;
+  height: 10px;
+  opacity: 0;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(circle, #fff 50%, transparent 50%),
+    radial-gradient(circle, #fff 50%, transparent 50%);
+  background-size: 10px 10px;
+  background-position:
+    left center,
+    right center;
+  animation: eyes 20s infinite;
 }
 
-/* the global reduced-motion rule clamps animations to 0.01ms, which would
-   make these flicker across the screen — drop them entirely instead */
+@keyframes torch {
+  0% { transform: translate(-25vw, 10vh); opacity: 1; }
+  38% { transform: translate(60vw, 20vh); opacity: 1; }
+  39% { transform: translate(60vw, 86vh); opacity: 1; }
+  40% { transform: translate(60vw, 86vh); opacity: 0; }
+  41% { transform: translate(60vw, 86vh); opacity: 1; }
+  42% { transform: translate(60vw, 86vh); opacity: 0; }
+  54% { transform: translate(60vw, 86vh); opacity: 0; }
+  55% { transform: translate(60vw, 86vh); opacity: 1; }
+  59% { transform: translate(60vw, 86vh); opacity: 1; }
+  64% { transform: translate(45vw, 78vh); opacity: 1; }
+  68% { transform: translate(85vw, 89vh); opacity: 1; }
+  72% { transform: translate(60vw, 86vh); opacity: 1; }
+  74% { transform: translate(60vw, 86vh); opacity: 1; }
+  100% { transform: translate(150vw, 50vh); opacity: 1; }
+}
+/* the exact negation of the above, offset for offset */
+@keyframes torch-hold {
+  0% { transform: translate(25vw, -10vh); }
+  38% { transform: translate(-60vw, -20vh); }
+  39% { transform: translate(-60vw, -86vh); }
+  40% { transform: translate(-60vw, -86vh); }
+  41% { transform: translate(-60vw, -86vh); }
+  42% { transform: translate(-60vw, -86vh); }
+  54% { transform: translate(-60vw, -86vh); }
+  55% { transform: translate(-60vw, -86vh); }
+  59% { transform: translate(-60vw, -86vh); }
+  64% { transform: translate(-45vw, -78vh); }
+  68% { transform: translate(-85vw, -89vh); }
+  72% { transform: translate(-60vw, -86vh); }
+  74% { transform: translate(-60vw, -86vh); }
+  100% { transform: translate(-150vw, -50vh); }
+}
+@keyframes eyes {
+  0%,
+  38% { opacity: 0; }
+  39% { opacity: 1; transform: scaleY(1); }
+  40% { opacity: 1; transform: scaleY(0); }
+  41% {
+    opacity: 1;
+    transform: scaleY(1);
+    background-image:
+      radial-gradient(circle, #ff0000 50%, transparent 50%),
+      radial-gradient(circle, #ff0000 50%, transparent 50%);
+    filter: drop-shadow(0 0 4px #ff8686);
+  }
+  42%,
+  100% { opacity: 0; }
+}
+
+/* the global clamp would freeze the torch mid-sweep and strobe the blink;
+   drop both instead and leave the shelf dark and still */
 @media (prefers-reduced-motion: reduce) {
-  .login-chains {
+  .shelf-lit,
+  .shelf-eyes {
     display: none;
   }
 }
@@ -789,7 +959,8 @@ select {
     linear-gradient(165deg, #2b2b2b 0%, #1a1a1a 45%, #0d0d0d 100%);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.08);
 }
-/* the same lattice as the page backdrop, so the two read as one system */
+/* a faint lattice over the panel, so it reads as a surface rather than a
+   flat block of black next to the shelf behind the card */
 .login-aside::before {
   content: '';
   position: absolute;
@@ -815,13 +986,59 @@ select {
 .aside-art {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f2f2f2 38%, #b4b4b4 100%);
+  /* dimmed from what it used to be, because the beam below is what brings it
+     back up — unlit dots are meant to sit back */
+  background: linear-gradient(180deg, #9c9c9c 0%, #8b8b8b 38%, #5c5c5c 100%);
   -webkit-mask: url('login-art.svg') center bottom / cover no-repeat;
   mask: url('login-art.svg') center bottom / cover no-repeat;
+}
+/* A light drifting over the globe, lifting the dots it passes.
+   The reveal mechanic is from Uiverse.io by Cobp (MIT), where a torch beam
+   uncovers a second, brighter copy of the scene beneath a dark one. Here the
+   scene is the globe that was already in this panel, so there is one artwork
+   rather than two, and the pass is monochrome like the rest of the palette.
+   Cobp animates clip-path over the whole scene, which repaints every frame;
+   this is a soft-edged blob moved with transform and cut into dots by the
+   parent's own mask, so nothing repaints as it travels. Sized in px because
+   the panel is a fixed 439x573 wherever it is shown at all. */
+.aside-art::after {
+  content: '';
+  position: absolute;
+  left: -170px;
+  top: -170px;
+  width: 340px;
+  height: 340px;
+  background: #f4f4f4;
+  -webkit-mask: radial-gradient(closest-side, #000 24%, rgba(0, 0, 0, 0.55) 56%, transparent 100%);
+  mask: radial-gradient(closest-side, #000 24%, rgba(0, 0, 0, 0.55) 56%, transparent 100%);
+  animation: aside-sweep 26s ease-in-out infinite;
+}
+/* starts and ends clear of the panel, so the loop point is off-screen */
+@keyframes aside-sweep {
+  0% { transform: translate(-210px, 150px); }
+  22% { transform: translate(140px, 110px); }
+  42% { transform: translate(300px, 300px); }
+  60% { transform: translate(200px, 470px); }
+  78% { transform: translate(380px, 390px); }
+  100% { transform: translate(650px, 250px); }
+}
+/* the global clamp would park the beam at its last keyframe — off-panel —
+   and leave the globe dimmed for good, so hand the brightness back instead */
+@media (prefers-reduced-motion: reduce) {
+  .aside-art {
+    background: linear-gradient(180deg, #ffffff 0%, #f2f2f2 38%, #b4b4b4 100%);
+  }
+  .aside-art::after {
+    display: none;
+  }
 }
 .aside-copy {
   position: relative;
   z-index: 1;
+  /* the feature spines below are deliberately wider than they render, so the
+     column has to be allowed to shrink under its own min-content width */
+  flex: 1;
+  min-width: 0;
 }
 .aside-copy::before {
   content: '';
@@ -832,6 +1049,7 @@ select {
 }
 .aside-copy h2 {
   margin: 0;
+  max-width: 22ch;
   font-size: 24px;
   line-height: 1.25;
   font-weight: 630;
@@ -839,13 +1057,115 @@ select {
   color: #fbfbfb;
   text-wrap: balance;
 }
-.aside-copy p {
-  margin: 12px 0 0;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.62);
-  max-width: 30ch;
+/* ------------------------------------------------- login feature strip
+   Adapted from Uiverse.io "accordion" by joe-watson-sbf (MIT): panels sit
+   side by side as spines, and the one under the pointer takes the width
+   while its label swings back upright. What used to be here was one
+   comma-stuffed sentence naming all three things at once; this gives each
+   its own panel and lets the reader pick. */
+.feat {
+  display: flex;
+  gap: 6px;
+  /* tall enough for the longest label to run down a shut spine — measured at
+     ~111px including the padding that becomes vertical once rotated */
+  height: 150px;
+  margin-top: 22px;
+}
+.feat-item {
+  flex: 1;
+  min-width: 0; /* a shut spine is narrower than its label — let it clip */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.035);
+  transition:
+    flex 0.5s var(--ease),
+    background-color 0.3s var(--ease),
+    border-color 0.3s var(--ease);
+}
+/* the label needs room along the axis it is rotated onto, so the span is
+   wider than a shut panel and simply gets clipped by it */
+.feat-item span {
+  min-width: 12em;
+  padding: 0 11px;
+  text-align: center;
+  transform: rotate(-90deg);
+  transition: transform 0.5s var(--ease);
+}
+.feat-item b {
+  display: block;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+/* collapsed to nothing rather than just faded, so a shut panel's copy keeps
+   its label centred instead of shoving it off the spine */
+.feat-item em {
+  display: block;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-style: normal;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.6);
   text-wrap: pretty;
+  transition:
+    max-height 0.5s var(--ease),
+    margin-top 0.5s var(--ease),
+    opacity 0.3s var(--ease);
+}
+
+/* Three states in cascade order: the first panel opens by default, any hover
+   on the strip shuts every panel (outweighing that default), and the panel
+   actually under the pointer reopens on the tie-break of source order. */
+.feat-item:first-child {
+  flex: 6;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.feat-item:first-child span {
+  transform: none;
+}
+.feat-item:first-child em {
+  max-height: 8em;
+  margin-top: 10px;
+  opacity: 1;
+}
+
+.feat:hover .feat-item {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.13);
+}
+.feat:hover .feat-item span {
+  transform: rotate(-90deg);
+}
+.feat:hover .feat-item em {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+}
+
+.feat .feat-item:hover {
+  flex: 6;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.feat .feat-item:hover span {
+  transform: none;
+}
+.feat .feat-item:hover em {
+  max-height: 8em;
+  margin-top: 10px;
+  opacity: 1;
 }
 @keyframes pop {
   from {
@@ -879,12 +1199,6 @@ select {
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-.login-form label {
-  font-size: 12px;
-  font-weight: 570;
-  color: var(--text-2);
-  margin: 0;
 }
 .login-form input {
   padding-top: 10px;
@@ -1020,6 +1334,9 @@ select {
   flex-direction: column;
   gap: 1px;
   flex: 1;
+  /* a long script tree scrolls here rather than pushing the footer off-screen */
+  min-height: 0;
+  overflow-y: auto;
 }
 .nav-item {
   position: relative;
@@ -1055,6 +1372,162 @@ select {
 }
 .nav-item.active svg.ico {
   color: var(--accent-text);
+}
+
+/* ------------------------------------------------- sidebar script tree
+   Adapted from Uiverse.io "file tree" by ashif_6672 (MIT). The branch opens
+   by animating a grid row from 0fr to 1fr — unlike max-height that needs no
+   guess at how tall the list is — and the folder swaps for its open glyph.
+   The source hides the checkbox with display:none, which takes it out of the
+   tab order; here it is only visually hidden, so the branch still opens from
+   the keyboard. */
+.tree-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.tree-label {
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.tree-title {
+  flex: 1;
+}
+.tree-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-4);
+}
+.tree-label svg.ico.tree-caret {
+  width: 13px;
+  height: 13px;
+  margin-left: -2px;
+  transition:
+    transform 0.3s var(--ease),
+    color 0.16s var(--ease);
+}
+.tree-toggle:checked ~ .tree-label .tree-caret {
+  transform: rotate(90deg);
+}
+.tree-label .ico-folder-open {
+  display: none;
+}
+.tree-toggle:checked ~ .tree-label .ico-folder {
+  display: none;
+}
+.tree-toggle:checked ~ .tree-label .ico-folder-open {
+  display: block;
+}
+.tree-toggle:focus-visible ~ .tree-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tree-children-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  /* clipping alone leaves the links tabbable while the branch is shut;
+     transitioned visibility holds off until the row has finished closing,
+     then takes them off the tab order, and restores them instantly on open */
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.32s var(--ease),
+    visibility 0.32s var(--ease);
+}
+.tree-toggle:checked ~ .tree-children-wrapper {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.tree-children {
+  overflow: hidden;
+}
+.tree-children ul {
+  position: relative;
+  list-style: none;
+  margin: 2px 0 6px 21px;
+  padding: 0 0 0 11px;
+}
+/* the guide line, stopped level with the last row's connector instead of
+   dangling past it (rows are a fixed 29px + 1px gap, so the offset holds) */
+.tree-children ul::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 14.5px;
+  width: 1px;
+  background: var(--line);
+}
+.tree-children li {
+  position: relative;
+  margin-top: 1px;
+}
+.tree-children li::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--line);
+}
+.tree-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 29px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 12.8px;
+  font-weight: 520;
+  transition:
+    color 0.16s var(--ease),
+    background-color 0.16s var(--ease);
+}
+.tree-file svg.ico {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-4);
+  transition: color 0.16s var(--ease);
+}
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-file:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.tree-file:hover svg.ico {
+  color: var(--text-2);
+}
+.tree-file.is-selected {
+  color: var(--accent-text);
+  font-weight: 620;
+  background: var(--accent-tint);
+}
+.tree-file.is-selected svg.ico {
+  color: var(--accent-text);
+}
+.tree-none,
+.tree-none:hover {
+  color: var(--text-4);
+  background: none;
+  cursor: default;
+}
+.tree-none:hover svg.ico {
+  color: var(--text-4);
 }
 
 .sidebar-foot {
@@ -1320,25 +1793,46 @@ h2.section .count {
   gap: 12px;
 }
 .card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --lift: 0px;
   background: var(--wash-sand);
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 20px;
   box-shadow: var(--sh-xs);
   transition:
-    transform 0.22s var(--spring),
+    transform 0.4s var(--ease),
+    background-color 0.2s var(--ease),
     border-color 0.2s var(--ease),
     box-shadow 0.2s var(--ease);
 }
+/* Tilts toward the pointer — adapted from Uiverse.io's 3D card by
+   Smit-Prajapati (MIT). The source swings 30deg, which in a grid throws a card
+   over its neighbours and skews its own text past reading; a few degrees keeps
+   the depth and none of that. app.js feeds --tilt-x/--tilt-y.
+   perspective() is per-element on purpose: a shared perspective on .grid would
+   give every card the same vanishing point, so the ones at the edges would
+   shear instead of tilting. */
 .script-card {
   display: block;
   position: relative;
+  transform-style: preserve-3d;
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y))
+    translateY(var(--lift));
 }
 .script-card:hover {
-  transform: translateY(-3px);
+  --lift: -4px;
+  /* while the pointer is inside, the tilt has to track it rather than lag */
+  transition-duration: 0.12s, 0.2s, 0.2s, 0.2s;
   background: var(--wash-lead);
   border-color: var(--accent-tint-2);
   box-shadow: var(--sh-md);
+}
+/* lifted off the card face so the tilt actually reads as depth */
+.script-card .card-top,
+.script-card .go {
+  transform: translateZ(18px);
 }
 .script-card .go {
   position: absolute;
@@ -1346,12 +1840,11 @@ h2.section .count {
   bottom: 14px;
   color: var(--text-4);
   opacity: 0;
-  transform: translateX(-4px);
   transition: 0.2s var(--ease);
 }
 .script-card:hover .go {
   opacity: 1;
-  transform: none;
+  transform: translateZ(26px);
   color: var(--accent-text);
 }
 @media (hover: none) {
@@ -1456,6 +1949,11 @@ h2.section .count {
   font-weight: 590;
   border: 1px solid transparent;
   text-transform: capitalize;
+}
+/* The capitalize above suits the one-word key statuses it was written for; the
+   security signals are written as sentences and would come out Title Cased. */
+.pill-signal {
+  text-transform: none;
 }
 .pill svg.ico {
   width: 11.5px;
@@ -1684,38 +2182,117 @@ tr:hover .row-actions,
   grid-column: 1 / -1;
 }
 .check {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  position: relative;
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface-2);
-  transition: 0.15s var(--ease);
+  transition: border-color 0.15s var(--ease);
 }
 .check:hover {
   border-color: var(--line-strong);
 }
+/* Visually hidden rather than display:none. The source component hides the
+   input outright, which takes it out of the tab order and off the
+   accessibility tree — and these toggles control obfuscation and maintenance
+   mode, so they have to stay reachable from the keyboard. */
 .check input {
-  width: 15px;
-  height: 15px;
-  margin: 1px 0 0;
-  flex: none;
-  accent-color: var(--accent);
-  cursor: pointer;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 .check label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   margin: 0;
   font-size: 12.5px;
   color: var(--text-2);
-  cursor: pointer;
   line-height: 1.45;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .check label b {
   display: block;
   color: var(--text);
   font-weight: 570;
   font-size: 13px;
+}
+
+/* The box — adapted from Uiverse.io "checkbox-46" by vishnupprajapat (MIT).
+   Colours read from the tokens so it follows both themes. */
+.cbx {
+  position: relative;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  transition:
+    background-color 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+/* the tick draws itself by retracting its dash offset */
+.cbx svg {
+  position: absolute;
+  top: 3px;
+  left: 2px;
+  width: 12px;
+  height: 10px;
+  fill: none;
+  stroke: var(--accent-fg);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 16px;
+  stroke-dashoffset: 16px;
+  transition: stroke-dashoffset 0.3s var(--ease) 0.1s;
+}
+/* the ring that pulses out on check */
+.cbx::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: scale(0);
+  opacity: 1;
+}
+.check label:hover .cbx {
+  border-color: var(--accent);
+}
+.check input:checked + label .cbx {
+  background: var(--accent);
+  border-color: var(--accent);
+  animation: cbx-pop 0.4s var(--ease);
+}
+.check input:checked + label .cbx svg {
+  stroke-dashoffset: 0;
+}
+.check input:checked + label .cbx::before {
+  transform: scale(3.4);
+  opacity: 0;
+  transition:
+    transform 0.6s var(--ease),
+    opacity 0.6s var(--ease);
+}
+/* the input carries focus but is invisible, so the ring has to go on the box */
+.check input:focus-visible + label .cbx {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@keyframes cbx-pop {
+  50% {
+    transform: scale(0.9);
+  }
 }
 .form-actions {
   display: flex;
@@ -1846,6 +2423,139 @@ tr:hover .row-actions,
 }
 .toast.err svg.ico {
   color: var(--bad);
+}
+
+/* ------------------------------------------------------------ boot loader */
+/* Four-ring loader from Uiverse.io by Juanes200122 (MIT). Its markup was not
+   published with the CSS, but the dasharrays give the geometry away: 660, 220
+   and 440 are the circumferences of r=105, r=35 and r=70, on a 240 box centred
+   at 120,120 — see index.html. Strokes read from the tokens so it works on
+   both themes. */
+/* matches the shelf, not the theme: the boot cover fades straight into the
+   login screen, and a light cover over a dark room pops on the handoff */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  background: #111;
+  transition: opacity 0.25s var(--ease);
+}
+.boot .pl__ring--a,
+.boot .pl__ring--d {
+  stroke: #ededed;
+}
+.boot .pl__ring--b {
+  stroke: #8f8f8f;
+}
+.boot .pl__ring--c {
+  stroke: #6a6a6a;
+}
+.boot.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+.pl {
+  width: 6em;
+  height: 6em;
+  /* held back briefly: a boot that resolves in 80ms should not flash a
+     spinner, it should just show the page */
+  opacity: 0;
+  animation: boot-in 0.3s var(--ease) 0.25s forwards;
+}
+@keyframes boot-in {
+  to {
+    opacity: 1;
+  }
+}
+.pl__ring {
+  animation: ringA 2s linear infinite;
+}
+.pl__ring--a {
+  stroke: var(--text);
+}
+.pl__ring--b {
+  animation-name: ringB;
+  stroke: var(--text-3);
+}
+.pl__ring--c {
+  animation-name: ringC;
+  stroke: var(--text-4);
+}
+.pl__ring--d {
+  animation-name: ringD;
+  stroke: var(--text);
+}
+/* the global reduced-motion rule squashes these to 0.01ms, which would strobe
+   the rings — freeze them into a static four-arc mark instead */
+@media (prefers-reduced-motion: reduce) {
+  .pl {
+    opacity: 1;
+    animation: none;
+  }
+  .pl__ring {
+    animation: none;
+    stroke-width: 26;
+  }
+  .pl__ring--a {
+    stroke-dasharray: 150 510;
+  }
+  .pl__ring--b {
+    stroke-dasharray: 50 170;
+  }
+  .pl__ring--c,
+  .pl__ring--d {
+    stroke-dasharray: 100 340;
+  }
+}
+
+@keyframes ringA {
+  from,
+  4% { stroke-dasharray: 0 660; stroke-width: 20; stroke-dashoffset: -330; }
+  12% { stroke-dasharray: 60 600; stroke-width: 30; stroke-dashoffset: -335; }
+  32% { stroke-dasharray: 60 600; stroke-width: 30; stroke-dashoffset: -595; }
+  40%,
+  54% { stroke-dasharray: 0 660; stroke-width: 20; stroke-dashoffset: -660; }
+  62% { stroke-dasharray: 60 600; stroke-width: 30; stroke-dashoffset: -665; }
+  82% { stroke-dasharray: 60 600; stroke-width: 30; stroke-dashoffset: -925; }
+  90%,
+  to { stroke-dasharray: 0 660; stroke-width: 20; stroke-dashoffset: -990; }
+}
+@keyframes ringB {
+  from,
+  12% { stroke-dasharray: 0 220; stroke-width: 20; stroke-dashoffset: -110; }
+  20% { stroke-dasharray: 20 200; stroke-width: 30; stroke-dashoffset: -115; }
+  40% { stroke-dasharray: 20 200; stroke-width: 30; stroke-dashoffset: -195; }
+  48%,
+  62% { stroke-dasharray: 0 220; stroke-width: 20; stroke-dashoffset: -220; }
+  70% { stroke-dasharray: 20 200; stroke-width: 30; stroke-dashoffset: -225; }
+  90% { stroke-dasharray: 20 200; stroke-width: 30; stroke-dashoffset: -305; }
+  98%,
+  to { stroke-dasharray: 0 220; stroke-width: 20; stroke-dashoffset: -330; }
+}
+@keyframes ringC {
+  from { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: 0; }
+  8% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -5; }
+  28% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -175; }
+  36%,
+  58% { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: -220; }
+  66% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -225; }
+  86% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -395; }
+  94%,
+  to { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: -440; }
+}
+@keyframes ringD {
+  from,
+  8% { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: 0; }
+  16% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -5; }
+  36% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -175; }
+  44%,
+  50% { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: -220; }
+  58% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -225; }
+  78% { stroke-dasharray: 40 400; stroke-width: 30; stroke-dashoffset: -395; }
+  86%,
+  to { stroke-dasharray: 0 440; stroke-width: 20; stroke-dashoffset: -440; }
 }
 
 /* ------------------------------------------------------- empty/loading */
@@ -1986,6 +2696,95 @@ tr:hover .row-actions,
 }
 .chart-legend .sw-all {
   background: var(--chart-track);
+}
+
+/* ------------------------------------------------------------ leak trace */
+.trace-input {
+  width: 100%;
+  min-height: 150px;
+  margin-bottom: 4px;
+}
+.panel-body > .muted + .trace-input {
+  margin-top: 12px;
+}
+
+/* The verdict, stated plainly. Colour carries none of the meaning on its own —
+   the sentence next to it says the same thing. */
+.trace-verdict {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 15px 16px;
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.trace-verdict svg.ico {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+.trace-verdict.hit {
+  border-color: var(--bad-line);
+  background: var(--bad-tint);
+}
+.trace-verdict.hit svg.ico {
+  color: var(--bad);
+}
+.trace-verdict div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.trace-verdict strong {
+  font-weight: 600;
+}
+.trace-verdict code {
+  font-family: var(--mono);
+  word-break: break-all;
+}
+.trace-verdict .muted {
+  font-size: 12.5px;
+}
+
+.trace-note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.trace-note svg.ico {
+  vertical-align: -3px;
+  margin-right: 5px;
+}
+
+/* How much of the fingerprint actually came back, per channel — this is what
+   separates "a copy of ours, renamed" from "not our file at all". */
+.trace-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+.trace-evidence > span {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.trace-evidence .trace-chan.dead {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+tr.trace-best {
+  background: var(--bad-tint);
+}
+tr.trace-best code {
+  font-weight: 600;
 }
 
 /* ----------------------------------------------------------- responsive */
