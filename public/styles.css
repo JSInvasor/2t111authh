@@ -100,13 +100,14 @@
 
   /* login backdrop */
   --login-card: #ffffff;
-  /* The line a focused field draws. Deliberately NOT --accent: the login fields
-     carry no halo, so the border is the whole focus signal, and taking it all
-     the way to the accent means jumping from a 6% hairline to near-solid in one
-     step. That reads as a hard snap however long the transition is — the eye
-     judges the contrast, not the duration. A mid-tone says "active" and lets
-     the fade actually be seen. */
-  --focus-line: #9a9a9a;
+  /* How a focused login field marks itself. It used to do the whole job with the
+     border alone, taken all the way to the accent — and a solid line at full
+     contrast reads as THICK no matter that it is only 1px, because thickness is
+     judged by how much the line shouts. So the line barely moves now and a soft
+     ring carries the signal instead: unmistakably focused, nothing to read as a
+     heavy edge. */
+  --focus-line: #c4c4c4;
+  --focus-ring: rgba(23, 23, 23, 0.07);
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -171,7 +172,8 @@
 
   --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
   --login-card: #171717;
-  --focus-line: rgba(255, 255, 255, 0.42);
+  --focus-line: rgba(255, 255, 255, 0.16);
+  --focus-ring: rgba(255, 255, 255, 0.055);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -226,7 +228,8 @@
 
     --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
     --login-card: #171717;
-    --focus-line: rgba(255, 255, 255, 0.42);
+    --focus-line: rgba(255, 255, 255, 0.16);
+    --focus-ring: rgba(255, 255, 255, 0.055);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -570,13 +573,13 @@ select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-ring);
 }
-/* No halo on the login fields — the border alone marks focus there.
-   :focus-visible would not help: text inputs match it even on a mouse click,
-   because they take keyboard input. So this has to cover :focus outright, and
-   the border darkening is what keeps focus locatable. */
+/* The login fields get their own, quieter focus than the panel inputs above:
+   a barely-moved border plus a soft ring, rather than a bright line.
+   :focus-visible would not do here — text inputs match it even on a mouse
+   click, because they take keyboard input — so this covers :focus outright. */
 .login-form input:focus {
   border-color: var(--focus-line);
-  box-shadow: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 input:focus-visible,
 textarea:focus-visible,
