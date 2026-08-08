@@ -88,6 +88,26 @@ const config = {
   tamperReports: bool(process.env.TAMPER_REPORTS, true),
   // Auto-ban a key after N client-side tamper reports in the sharing window (0 = off).
   tamperReportBan: int(process.env.TAMPER_REPORT_BAN, 0),
+  // Auto-ban a key after N protocol violations in the sharing window (0 = off).
+  //
+  // Unlike the client reports above, these are facts the server established
+  // itself: a spent/foreign/expired nonce, or a proof that does not verify. A
+  // stock loader cannot produce one — it takes a fresh nonce, spends it once,
+  // immediately, from the same network, with an HMAC only the license key makes.
+  // So there is no legitimate client to false-positive on, and unlike a report
+  // they cannot be forged by a third party to burn someone else's key.
+  protocolBan: int(process.env.PROTOCOL_BAN, 0),
+  // Whether the loader stops when it catches a hooked HTTP/loadstring primitive,
+  // or only reports it. Hooks that bother to use newcclosure slip past the check
+  // either way, so this trades a weak barrier against locking out the executors
+  // that wrap those functions legitimately.
+  tamperHardStop: bool(process.env.TAMPER_HARD_STOP, true),
+  // Fingerprint every protected delivery with the key that asked for it, so a
+  // leaked dump can be traced back to whoever leaked it. Costs nothing at
+  // runtime and cannot false-positive — the mark is read, not guessed — but it
+  // needs the script's `obfuscate` flag on, since that is what makes a rewritten
+  // copy indistinguishable from a normal build.
+  watermark: bool(process.env.WATERMARK, true),
 
   // ------------------------------ Backups ------------------------------
   // Losing the database locks out every customer at once AND destroys the record

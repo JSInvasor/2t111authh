@@ -35,6 +35,7 @@ function renderLoader(script, { obfuscate = config.antiTamper && config.obfuscat
     .replace(/\{\{SCRIPT_ID\}\}/g, () => script.id)
     .replace(/\{\{SCRIPT_NAME\}\}/g, () => name)
     .replace(/\{\{REQUIRE_SESSION\}\}/g, () => String(requireSession))
+    .replace(/\{\{HARD_STOP\}\}/g, () => (config.tamperHardStop ? 'true' : 'false'))
     .replace(/\{\{SHA256\}\}/g, () => SHA256);
 
   // Ship the bootstrap encrypted as well, so there is no stable plaintext for an

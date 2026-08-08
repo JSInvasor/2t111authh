@@ -74,6 +74,14 @@ function score(keyId, candidate = {}) {
   const concurrent = rows.filter((r) => r.reason === 'concurrent_session').length;
   add('concurrency', ramp(concurrent, 4, 30), `${concurrent} sessions displaced another`);
 
+  // Protocol violations. Weighted harder than anything else per-event, because
+  // these are the only signals here the server established itself rather than
+  // inferred: a spent or foreign nonce, a proof that does not verify. A stock
+  // loader cannot produce one, so unlike the heuristics above there is no
+  // legitimate behaviour to mistake for it.
+  const violations = rows.filter((r) => r.reason && r.reason.startsWith('protocol:')).length;
+  add('protocol', ramp(violations, 2, 25), `${violations} protocol violations`);
+
   // Client-side integrity reports. Proof of key possession is required to file
   // one, so these are from the holder's own machine.
   const tampers = rows.filter((r) => r.reason && r.reason.startsWith('client_tamper:')).length;

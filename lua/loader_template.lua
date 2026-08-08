@@ -34,6 +34,11 @@ local SCRIPT_ID = "{{SCRIPT_ID}}"
 -- Set by the server at render time. When true, a response that is not
 -- session-encrypted is refused outright rather than executed.
 local REQUIRE_SESSION = {{REQUIRE_SESSION}}
+-- Whether a caught hook stops the run or is only reported. A hook that bothers
+-- to wrap itself in newcclosure slips past the check either way, so this trades
+-- a weak barrier against locking out the executors that wrap these functions
+-- legitimately. Off, the signal still reaches the dashboard.
+local HARD_STOP = {{HARD_STOP}}
 
 {{SHA256}}
 
@@ -187,9 +192,15 @@ local function hooked(fn)
     return ok and isC == false
 end
 
--- Hard stops.
-if hooked(httpRequest) then return bail("hook:http", "tampered HTTP function detected.") end
-if hooked(loadChunk) then return bail("hook:loadstring", "tampered loadstring detected.") end
+-- Hard stops, unless the server asked for these to be advisory only.
+if hooked(httpRequest) then
+    if HARD_STOP then return bail("hook:http", "tampered HTTP function detected.") end
+    report("hook:http")
+end
+if hooked(loadChunk) then
+    if HARD_STOP then return bail("hook:loadstring", "tampered loadstring detected.") end
+    report("hook:loadstring")
+end
 
 -- Advisory signals.
 local jsonEncode, jsonDecode

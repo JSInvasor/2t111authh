@@ -76,6 +76,20 @@ function listKeys(scriptId, { limit = 100, offset = 0 } = {}) {
     .all(scriptId, limit, offset);
 }
 
+/**
+ * Every key that could have produced a leaked copy of this script, lean enough
+ * to score tens of thousands of them at once. Revoked and expired keys are
+ * included on purpose: a leak is usually older than the ban that followed it.
+ */
+function allKeysForTrace(scriptId) {
+  return db
+    .prepare(
+      `SELECT id, value, status, note, discord_id, hwid, last_seen, created_at
+         FROM keys WHERE script_id = ? ORDER BY id`
+    )
+    .all(scriptId);
+}
+
 /** Keys created by a specific reseller (optionally filtered to one script). */
 function listKeysByReseller(resellerId, { scriptId = null, limit = 1000, offset = 0 } = {}) {
   if (scriptId) {
@@ -193,6 +207,7 @@ module.exports = {
   getKeyByDiscord,
   listKeys,
   listKeysByReseller,
+  allKeysForTrace,
   updateKey,
   resetHwid,
   userResetHwid,

@@ -275,10 +275,10 @@ function authenticate({ scriptId, key, hwid, ip, executor, device = null, env = 
       key,
       hwid: hwid || '',
     });
-    result.script = obfuscate(script, { key: derived });
+    result.script = obfuscate(script, { key: derived, keyId: row.id });
     result.enc = 'session';
   } else {
-    result.script = obfuscate(script);
+    result.script = obfuscate(script, { keyId: row.id });
   }
   return result;
 }
@@ -378,4 +378,59 @@ function reportTamper({ scriptId, keyRow = null, hwid, ip, executor, reason }) {
   return { success: true };
 }
 
-module.exports = { authenticate, reportTamper, cleanExecutor, checkHwid, HWID_RE };
+/**
+ * Record a protocol violation the server established itself, and auto-ban the
+ * key once they pile up (PROTOCOL_BAN, 0 = off).
+ *
+ * These are the opposite of the client reports above: a stock loader takes a
+ * fresh nonce, spends it once, straight away, from the same network, carrying an
+ * HMAC only the license key produces. Every reason routed here is therefore
+ * something no legitimate client can do — which is what makes it safe to ban on
+ * and, unlike a report, impossible for an outsider to fake against someone
+ * else's key: it takes the key's own live session to even reach this code.
+ *
+ * The key is named by hash, like everywhere else on the public path — the value
+ * never travels, so there is nothing here to look it up by.
+ *
+ * @param {{scriptId:string, kh?:string|null, hwid?:string|null, ip?:string|null,
+ *          executor?:string|null, reason:string}} args
+ * @returns {{banned:boolean, count:number}}
+ */
+function recordViolation({ scriptId, kh, hwid, ip, executor, reason }) {
+  const row = kh ? db.prepare('SELECT id FROM keys WHERE kh = ? AND script_id = ?').get(String(kh), scriptId) : null;
+  const tag = `protocol:${
+    String(reason || 'unknown')
+      .replace(/[^a-z0-9:_-]/gi, '')
+      .slice(0, 32) || 'unknown'
+  }`;
+
+  logExecution({
+    keyId: row ? row.id : null,
+    scriptId,
+    hwid,
+    ip,
+    executor: cleanExecutor(executor),
+    success: false,
+    reason: tag,
+  });
+
+  // Nothing to count against without a key — the violation is still on record.
+  if (!row || config.protocolBan < 1) return { banned: false, count: 0 };
+
+  const since = now() - Math.floor(config.keyShareWindowMs / 1000);
+  const seen = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM executions
+       WHERE key_id = ? AND created_at >= ? AND reason LIKE 'protocol:%'`
+    )
+    .get(row.id, since);
+
+  if (seen.n >= config.protocolBan) {
+    db.prepare("UPDATE keys SET status = 'banned' WHERE id = ?").run(row.id);
+    lease.revokeKey(row.id);
+    return { banned: true, count: seen.n };
+  }
+  return { banned: false, count: seen.n };
+}
+
+module.exports = { authenticate, reportTamper, recordViolation, cleanExecutor, checkHwid, HWID_RE };
