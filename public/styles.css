@@ -100,6 +100,13 @@
 
   /* login backdrop */
   --login-card: #ffffff;
+  /* The line a focused field draws. Deliberately NOT --accent: the login fields
+     carry no halo, so the border is the whole focus signal, and taking it all
+     the way to the accent means jumping from a 6% hairline to near-solid in one
+     step. That reads as a hard snap however long the transition is — the eye
+     judges the contrast, not the duration. A mid-tone says "active" and lets
+     the fade actually be seen. */
+  --focus-line: #9a9a9a;
 
   --r-xs: 10px;
   --r-sm: 13px;
@@ -164,6 +171,7 @@
 
   --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
   --login-card: #171717;
+  --focus-line: rgba(255, 255, 255, 0.42);
 
   --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -218,6 +226,7 @@
 
     --logo-fill: linear-gradient(155deg, #ffffff, #d6d6d6 58%, #a5a5a5);
     --login-card: #171717;
+    --focus-line: rgba(255, 255, 255, 0.42);
 
     --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -542,9 +551,9 @@ select {
   font-size: 13.5px;
   outline: none;
   transition:
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease),
-    background-color 0.15s var(--ease);
+    border-color 0.24s var(--ease),
+    box-shadow 0.24s var(--ease),
+    background-color 0.24s var(--ease);
 }
 input::placeholder,
 textarea::placeholder {
@@ -566,6 +575,7 @@ select:focus {
    because they take keyboard input. So this has to cover :focus outright, and
    the border darkening is what keeps focus locatable. */
 .login-form input:focus {
+  border-color: var(--focus-line);
   box-shadow: none;
 }
 input:focus-visible,
